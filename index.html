@@ -169,6 +169,28 @@
     cursor: pointer;
   }
   .d-dot[aria-current="true"] { background: var(--accent); }
+
+  .d-putar { background: #F6F8FA; }
+  .spin {
+    aspect-ratio: 4 / 3;
+    display: grid; place-items: center;
+    touch-action: pan-y;
+    cursor: grab;
+    user-select: none; -webkit-user-select: none;
+  }
+  .spin:active { cursor: grabbing; }
+  .spin img { width: 100%; height: 100%; object-fit: contain; padding: 14px; pointer-events: none; }
+  .spin-status { padding: 0 12px 12px; text-align: center; color: var(--muted); font-size: .88rem; }
+  .btn-putar {
+    margin-bottom: 14px;
+    padding: 8px 16px;
+    border: 1.5px solid var(--accent);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent);
+    font: inherit; font-weight: 600;
+    cursor: pointer;
+  }
   .d-isi { padding: 18px 20px 22px; }
   .d-isi h2 { font-size: 1.4rem; font-weight: 800; }
   .d-isi ul { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
@@ -206,7 +228,9 @@
 
 <dialog id="detail">
   <div class="d-galeri" id="dGaleri"></div>
+  <div class="d-putar" id="dPutar" hidden></div>
   <div class="d-isi">
+    <button class="btn-putar" id="dBtn360" type="button" hidden>Putar 360°</button>
     <h2 id="dNama"></h2>
     <ul id="dList"></ul>
     <button class="tutup" id="dTutup" type="button">Tutup</button>
@@ -225,6 +249,8 @@ const API_URL = '';
 /* Data contoh. Nanti digantikan data dari spreadsheet.
    "gambar": satu atau beberapa nama file, dipisah tanda |
              (gambar pertama jadi foto kotak, semuanya jadi slide di pop-up)
+   "putar360": opsional, isi: awalan|jumlah  (contoh: vbr-aegis-m1-360|24)
+             file: vbr-aegis-m1-360-01.webp sampai ...-24.webp
    "detail": pisahkan tiap baris dengan tanda |  */
 const DATA_CONTOH = {
   banner: [
@@ -233,7 +259,7 @@ const DATA_CONTOH = {
     { gambar: 'vbr-banner3.webp', judul: 'Pilihan casing untuk semua kebutuhan' }
   ],
   produk: [
-    { nama: 'VBR Aegis M1',  gambar: 'vbr-aegis-m1.webp|vbr-aegis-m1-2.webp|vbr-aegis-m1-3.webp',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel samping: Kaca tempered|Kipas bawaan: 3 unit' },
+    { nama: 'VBR Aegis M1',  gambar: 'vbr-aegis-m1.webp|vbr-aegis-m1-2.webp|vbr-aegis-m1-3.webp', putar360: 'vbr-aegis-m1-360|24',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel samping: Kaca tempered|Kipas bawaan: 3 unit' },
     { nama: 'VBR Aegis M2',  gambar: 'vbr-aegis-m2.webp',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel depan: Mesh|Kipas bawaan: 4 unit' },
     { nama: 'VBR Nova Mini', gambar: 'vbr-nova-mini.webp', detail: 'Ukuran: Mini Tower|Motherboard: mATX, ITX|Panel samping: Akrilik|Kipas bawaan: 1 unit' },
     { nama: 'VBR Titan X',   gambar: 'vbr-titan-x.webp',   detail: 'Ukuran: Full Tower|Motherboard: E-ATX, ATX, mATX|Panel samping: Kaca tempered|Dukungan radiator: 360 mm' },
@@ -442,8 +468,123 @@ function buatGaleri(p) {
   tandai(0);
 }
 
+/* Kolom putar360 berisi: awalan|jumlah   contoh: vbr-aegis-m1-360|24
+   Nama file frame: awalan-01.webp sampai awalan-24.webp */
+function baca360(p) {
+  const bagian = String(p.putar360 || '').split('|').map(s => s.trim());
+  const jumlah = parseInt(bagian[1], 10);
+  if (!bagian[0] || !(jumlah >= 2)) return null;
+  return { awalan: bagian[0], jumlah };
+}
+
+function siapkan360(p) {
+  const btn = document.getElementById('dBtn360');
+  const gal = document.getElementById('dGaleri');
+  const put = document.getElementById('dPutar');
+
+  put.hidden = true;
+  put.textContent = '';
+  gal.hidden = false;
+  btn.textContent = 'Putar 360°';
+  btn.onclick = null;
+
+  const info = baca360(p);
+  btn.hidden = !info;
+  if (!info) return;
+
+  let terbuka = false;
+  btn.onclick = () => {
+    terbuka = !terbuka;
+    gal.hidden = terbuka;
+    put.hidden = !terbuka;
+    btn.textContent = terbuka ? 'Lihat foto' : 'Putar 360°';
+    if (terbuka) mulaiPutar(put, p, info);
+  };
+}
+
+function mulaiPutar(wadah, p, info) {
+  if (wadah.firstChild) return;   // sudah dibuat sebelumnya
+
+  const total = info.jumlah;
+  const frame = i => FOTO + info.awalan + '-' + String(i + 1).padStart(2, '0') + '.webp';
+
+  const area = document.createElement('div');
+  area.className = 'spin';
+  area.tabIndex = 0;
+  area.setAttribute('role', 'img');
+  area.setAttribute('aria-label', p.nama + ', tampilan 360 derajat. Geser untuk memutar.');
+  const img = document.createElement('img');
+  img.alt = '';
+  img.draggable = false;
+  area.appendChild(img);
+
+  const status = document.createElement('p');
+  status.className = 'spin-status';
+  status.textContent = 'Memuat foto 360°…';
+  wadah.append(area, status);
+
+  let idx = 0, siap = false, menggeser = false, mulaiX = 0, mulaiIdx = 0;
+  let muat = 0, gagal = 0;
+
+  const tampil = i => {
+    idx = ((i % total) + total) % total;
+    img.src = frame(idx);
+  };
+
+  const cekSelesai = () => {
+    const selesai = muat + gagal;
+    if (selesai < total) {
+      status.textContent = 'Memuat foto 360° ' + selesai + '/' + total;
+      return;
+    }
+    if (gagal) {
+      wadah.textContent = '';
+      const m = document.createElement('p');
+      m.className = 'spin-status';
+      m.style.padding = '40px 12px';
+      m.textContent = 'Foto 360° belum tersedia untuk produk ini.';
+      wadah.appendChild(m);
+      return;
+    }
+    siap = true;
+    status.textContent = 'Geser ke kiri atau kanan untuk memutar';
+  };
+
+  // Muat semua frame dulu supaya putarannya mulus
+  for (let i = 0; i < total; i++) {
+    const im = new Image();
+    im.onload = () => { muat++; cekSelesai(); };
+    im.onerror = () => { gagal++; cekSelesai(); };
+    im.src = frame(i);
+  }
+  tampil(0);
+
+  area.addEventListener('pointerdown', e => {
+    if (!siap) return;
+    menggeser = true;
+    mulaiX = e.clientX;
+    mulaiIdx = idx;
+    area.setPointerCapture(e.pointerId);
+  });
+  area.addEventListener('pointermove', e => {
+    if (!menggeser) return;
+    // geser selebar kotak = satu putaran penuh
+    const langkah = Math.round((e.clientX - mulaiX) / ((area.clientWidth || 300) / total));
+    tampil(mulaiIdx - langkah);
+  });
+  const lepas = () => { menggeser = false; };
+  area.addEventListener('pointerup', lepas);
+  area.addEventListener('pointercancel', lepas);
+  area.addEventListener('keydown', e => {
+    if (!siap) return;
+    if (e.key === 'ArrowLeft')  { tampil(idx + 1); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { tampil(idx - 1); e.preventDefault(); }
+  });
+}
+
 function bukaDetail(p) {
   buatGaleri(p);
+  siapkan360(p);
   document.getElementById('dNama').textContent = p.nama;
   const ul = document.getElementById('dList');
   ul.textContent = '';
