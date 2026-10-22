@@ -136,6 +136,7 @@
   dialog {
     width: min(560px, calc(100% - 24px));
     max-height: calc(100% - 24px);
+    margin: auto;
     padding: 0;
     border: none;
     border-radius: var(--radius);
@@ -144,8 +145,30 @@
     overflow: auto;
   }
   dialog::backdrop { background: rgba(15, 23, 34, .6); }
-  .d-foto { aspect-ratio: 4 / 3; background: #F6F8FA; display: grid; place-items: center; }
-  .d-foto img { width: 100%; height: 100%; object-fit: contain; padding: 14px; }
+  .d-galeri { background: #F6F8FA; }
+  .d-geser {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .d-geser::-webkit-scrollbar { display: none; }
+  .d-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: center;
+    aspect-ratio: 4 / 3;
+    display: grid; place-items: center;
+  }
+  .d-slide img { width: 100%; height: 100%; object-fit: contain; padding: 14px; }
+  .d-slide span { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 3rem; color: var(--line); }
+  .d-dots { display: flex; justify-content: center; gap: 10px; padding: 4px 0 12px; }
+  .d-dot {
+    width: 10px; height: 10px; padding: 0;
+    border: none; border-radius: 50%;
+    background: var(--line);
+    cursor: pointer;
+  }
+  .d-dot[aria-current="true"] { background: var(--accent); }
   .d-isi { padding: 18px 20px 22px; }
   .d-isi h2 { font-size: 1.4rem; font-weight: 800; }
   .d-isi ul { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
@@ -182,7 +205,7 @@
 </main>
 
 <dialog id="detail">
-  <div class="d-foto" id="dFoto"></div>
+  <div class="d-galeri" id="dGaleri"></div>
   <div class="d-isi">
     <h2 id="dNama"></h2>
     <ul id="dList"></ul>
@@ -200,6 +223,8 @@ const FOTO = 'foto/';
 const API_URL = '';
 
 /* Data contoh. Nanti digantikan data dari spreadsheet.
+   "gambar": satu atau beberapa nama file, dipisah tanda |
+             (gambar pertama jadi foto kotak, semuanya jadi slide di pop-up)
    "detail": pisahkan tiap baris dengan tanda |  */
 const DATA_CONTOH = {
   banner: [
@@ -208,7 +233,7 @@ const DATA_CONTOH = {
     { gambar: 'vbr-banner3.webp', judul: 'Pilihan casing untuk semua kebutuhan' }
   ],
   produk: [
-    { nama: 'VBR Aegis M1',  gambar: 'vbr-aegis-m1.webp',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel samping: Kaca tempered|Kipas bawaan: 3 unit' },
+    { nama: 'VBR Aegis M1',  gambar: 'vbr-aegis-m1.webp|vbr-aegis-m1-2.webp|vbr-aegis-m1-3.webp',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel samping: Kaca tempered|Kipas bawaan: 3 unit' },
     { nama: 'VBR Aegis M2',  gambar: 'vbr-aegis-m2.webp',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel depan: Mesh|Kipas bawaan: 4 unit' },
     { nama: 'VBR Nova Mini', gambar: 'vbr-nova-mini.webp', detail: 'Ukuran: Mini Tower|Motherboard: mATX, ITX|Panel samping: Akrilik|Kipas bawaan: 1 unit' },
     { nama: 'VBR Titan X',   gambar: 'vbr-titan-x.webp',   detail: 'Ukuran: Full Tower|Motherboard: E-ATX, ATX, mATX|Panel samping: Kaca tempered|Dukungan radiator: 360 mm' },
@@ -302,6 +327,11 @@ function barisDetail(teks) {
   return String(teks || '').split('|').map(s => s.trim()).filter(Boolean);
 }
 
+/* Kolom gambar bisa berisi beberapa nama file dipisah | */
+function daftarGambar(p) {
+  return String(p.gambar || '').split('|').map(s => s.trim()).filter(Boolean);
+}
+
 function buatFoto(p, kelas) {
   const wadah = document.createElement('div');
   wadah.className = kelas;
@@ -311,9 +341,10 @@ function buatFoto(p, kelas) {
     s.textContent = (p.nama || '?').trim().charAt(0).toUpperCase();
     wadah.appendChild(s);
   };
-  if (!p.gambar) { fallback(); return wadah; }
+  const pertama = daftarGambar(p)[0];
+  if (!pertama) { fallback(); return wadah; }
   const img = document.createElement('img');
-  img.src = FOTO + p.gambar;
+  img.src = FOTO + pertama;
   img.alt = p.nama;
   img.loading = 'lazy';
   img.onerror = fallback;
@@ -358,9 +389,61 @@ function tampilkan(daftar) {
    ============================================================ */
 const dlg = document.getElementById('detail');
 
+function buatGaleri(p) {
+  const g = document.getElementById('dGaleri');
+  g.textContent = '';
+
+  const daftar = daftarGambar(p);
+  const items = daftar.length ? daftar : [''];
+
+  const geser = document.createElement('div');
+  geser.className = 'd-geser';
+
+  items.forEach((nama, i) => {
+    const s = document.createElement('div');
+    s.className = 'd-slide';
+    const fallback = () => {
+      s.textContent = '';
+      const t = document.createElement('span');
+      t.textContent = (p.nama || '?').trim().charAt(0).toUpperCase();
+      s.appendChild(t);
+    };
+    if (!nama) {
+      fallback();
+    } else {
+      const img = document.createElement('img');
+      img.src = FOTO + nama;
+      img.alt = p.nama + ' foto ' + (i + 1);
+      img.loading = i === 0 ? 'eager' : 'lazy';
+      img.onerror = fallback;
+      s.appendChild(img);
+    }
+    geser.appendChild(s);
+  });
+  g.appendChild(geser);
+
+  if (items.length < 2) return;
+
+  const dots = document.createElement('div');
+  dots.className = 'd-dots';
+  const tombol = items.map((_, i) => {
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'd-dot';
+    d.setAttribute('aria-label', 'Foto ' + (i + 1));
+    d.onclick = () => geser.scrollTo({ left: i * geser.clientWidth, behavior: 'smooth' });
+    dots.appendChild(d);
+    return d;
+  });
+  g.appendChild(dots);
+
+  const tandai = i => tombol.forEach((d, k) => d.setAttribute('aria-current', k === i));
+  geser.addEventListener('scroll', () => tandai(Math.round(geser.scrollLeft / geser.clientWidth)));
+  tandai(0);
+}
+
 function bukaDetail(p) {
-  const f = document.getElementById('dFoto');
-  f.replaceWith(Object.assign(buatFoto(p, 'd-foto'), { id: 'dFoto' }));
+  buatGaleri(p);
   document.getElementById('dNama').textContent = p.nama;
   const ul = document.getElementById('dList');
   ul.textContent = '';
