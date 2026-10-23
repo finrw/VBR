@@ -35,10 +35,9 @@
     margin-top: 16px;
     border-radius: var(--radius);
     overflow: hidden;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 8 / 3;   /* sama dengan gambar 1600 x 600, tidak terpotong */
     background: #0F1722;
   }
-  @media (min-width: 720px) { .banner { aspect-ratio: 16 / 6; } }
   .slide {
     position: absolute; inset: 0;
     display: flex; align-items: flex-end;
@@ -244,7 +243,7 @@
    - API_URL: nanti diisi URL Apps Script. Kosong = pakai DATA_CONTOH
    ============================================================ */
 const FOTO = 'foto/';
-const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
+const API_URL = '';
 
 /* Data contoh. Nanti digantikan data dari spreadsheet.
    "gambar": satu atau beberapa nama file, dipisah tanda |
