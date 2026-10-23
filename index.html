@@ -169,6 +169,20 @@
   }
   .d-dot[aria-current="true"] { background: var(--accent); }
 
+  .d-pembungkus { position: relative; }
+  .d-panah {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; padding: 0 0 4px;
+    border: none; border-radius: 50%;
+    background: rgba(22, 32, 43, .65); color: #fff;
+    font-size: 1.8rem; line-height: 1;
+    display: grid; place-items: center;
+    cursor: pointer;
+  }
+  .d-panah:hover { background: rgba(22, 32, 43, .9); }
+  .d-panah.kiri { left: 10px; }
+  .d-panah.kanan { right: 10px; }
+
   .d-putar { background: #F6F8FA; }
   .spin {
     aspect-ratio: 4 / 3;
@@ -243,13 +257,15 @@
    - API_URL: nanti diisi URL Apps Script. Kosong = pakai DATA_CONTOH
    ============================================================ */
 const FOTO = 'foto/';
-const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
+const API_URL = '';
 
 /* Data contoh. Nanti digantikan data dari spreadsheet.
    "gambar": satu atau beberapa nama file, dipisah tanda |
              (gambar pertama jadi foto kotak, semuanya jadi slide di pop-up)
-   "putar360": opsional, isi: awalan|jumlah  (contoh: vbr-aegis-m1-360|24)
-             file: vbr-aegis-m1-360-01.webp sampai ...-24.webp
+   "putar360": opsional. Dua cara menulis:
+             a) daftar nama file: 1p100-01.jpeg|2p100-02.jpeg|3p100-03.jpeg
+             b) awalan|jumlah: vbr-aegis-m1-360|24
+                (file: vbr-aegis-m1-360-01.webp sampai ...-24.webp)
    "detail": pisahkan tiap baris dengan tanda |  */
 const DATA_CONTOH = {
   banner: [
@@ -414,6 +430,8 @@ function tampilkan(daftar) {
    ============================================================ */
 const dlg = document.getElementById('detail');
 
+let geserAktif = null;   // fungsi pindah foto untuk pop-up yang sedang terbuka
+
 function buatGaleri(p) {
   const g = document.getElementById('dGaleri');
   g.textContent = '';
@@ -445,9 +463,31 @@ function buatGaleri(p) {
     }
     geser.appendChild(s);
   });
-  g.appendChild(geser);
+  const bungkus = document.createElement('div');
+  bungkus.className = 'd-pembungkus';
+  bungkus.appendChild(geser);
+  g.appendChild(bungkus);
 
+  geserAktif = null;
   if (items.length < 2) return;
+
+  // Panah kiri/kanan (untuk pengguna desktop) + tombol panah di keyboard
+  const pindahFoto = arah => {
+    const lebar = geser.clientWidth;
+    const sekarang = Math.round(geser.scrollLeft / lebar);
+    const tujuan = (sekarang + arah + items.length) % items.length;
+    geser.scrollTo({ left: tujuan * lebar, behavior: 'smooth' });
+  };
+  geserAktif = pindahFoto;
+  [['kiri', -1, '‹', 'Foto sebelumnya'], ['kanan', 1, '›', 'Foto berikutnya']].forEach(([kls, arah, simbol, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'd-panah ' + kls;
+    b.textContent = simbol;
+    b.setAttribute('aria-label', label);
+    b.onclick = () => pindahFoto(arah);
+    bungkus.appendChild(b);
+  });
 
   const dots = document.createElement('div');
   dots.className = 'd-dots';
@@ -470,10 +510,16 @@ function buatGaleri(p) {
 /* Kolom putar360 berisi: awalan|jumlah   contoh: vbr-aegis-m1-360|24
    Nama file frame: awalan-01.webp sampai awalan-24.webp */
 function baca360(p) {
-  const bagian = String(p.putar360 || '').split('|').map(s => s.trim());
+  const bagian = String(p.putar360 || '').split(/[|,]/).map(s => s.trim()).filter(Boolean);
+
+  // Cara 1: daftar nama file lengkap, contoh: 1p100-01.jpeg|2p100-02.jpeg|3p100-03.jpeg
+  if (bagian.length >= 2 && bagian.every(s => /\.(webp|jpe?g|png)$/i.test(s))) {
+    return { daftar: bagian, jumlah: bagian.length };
+  }
+  // Cara 2: awalan|jumlah, contoh: vbr-aegis-m1-360|24
   const jumlah = parseInt(bagian[1], 10);
-  if (!bagian[0] || !(jumlah >= 2)) return null;
-  return { awalan: bagian[0], jumlah };
+  if (bagian.length === 2 && jumlah >= 2) return { awalan: bagian[0], jumlah };
+  return null;
 }
 
 function siapkan360(p) {
@@ -505,7 +551,9 @@ function mulaiPutar(wadah, p, info) {
   if (wadah.firstChild) return;   // sudah dibuat sebelumnya
 
   const total = info.jumlah;
-  const frame = i => FOTO + info.awalan + '-' + String(i + 1).padStart(2, '0') + '.webp';
+  const frame = i => info.daftar
+    ? FOTO + info.daftar[i]
+    : FOTO + info.awalan + '-' + String(i + 1).padStart(2, '0') + '.webp';
 
   const area = document.createElement('div');
   area.className = 'spin';
@@ -595,6 +643,11 @@ function bukaDetail(p) {
   dlg.showModal();
 }
 document.getElementById('dTutup').onclick = () => dlg.close();
+dlg.addEventListener('keydown', e => {
+  if (!geserAktif || document.getElementById('dGaleri').hidden) return;
+  if (e.key === 'ArrowLeft')  { geserAktif(-1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { geserAktif(1);  e.preventDefault(); }
+});
 dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
 
 /* ============================================================
