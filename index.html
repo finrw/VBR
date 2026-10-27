@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VBR Casing PC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEF1F4;
+    --surface: #FFFFFF;
+    --ink: #16202B;
+    --muted: #5B6877;
+    --line: #D5DCE3;
+    --accent: #1F4FFF;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Figtree", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  h1, h2, h3 { font-family: "Archivo", system-ui, sans-serif; line-height: 1.15; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- Banner ---- */
+  .banner {
+    position: relative;
+    margin-top: 16px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    aspect-ratio: 8 / 3;   /* sama dengan gambar 1600 x 600, tidak terpotong */
+    background: #0F1722;
+  }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end;
+    padding: 24px;
+    background: linear-gradient(135deg, #16202B 0%, #1F4FFF 140%);
+    color: #fff;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .6s ease, visibility .6s;
+  }
+  .slide.aktif { opacity: 1; visibility: visible; }
+  .slide img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .slide-judul {
+    position: relative;
+    font-family: "Archivo", sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.4rem, 4vw, 2.4rem);
+  }
+  .slide img + .slide-judul { display: none; }
+  .dots {
+    position: absolute; left: 0; right: 0; bottom: 10px;
+    display: flex; justify-content: center; gap: 8px;
+  }
+  .dot {
+    width: 10px; height: 10px; padding: 0;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: transparent;
+    cursor: pointer;
+  }
+  .dot[aria-current="true"] { background: #fff; }
+
+  /* ---- Judul & pencarian ---- */
+  .kepala {
+    display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between;
+    gap: 12px;
+    margin: 28px 0 16px;
+  }
+  .kepala h1 { font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 800; }
+  .kepala p { color: var(--muted); font-size: .95rem; }
+  .cari {
+    width: 100%; max-width: 280px;
+    padding: 10px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    font: inherit; color: inherit;
+  }
+  .cari:focus { border-color: var(--accent); }
+
+  /* ---- Grid produk ---- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+    gap: 14px;
+    padding-bottom: 48px;
+  }
+  @media (min-width: 720px) { .grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; } }
+  .kartu {
+    display: flex; flex-direction: column;
+    text-align: left;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0;
+    overflow: hidden;
+    font: inherit; color: inherit;
+    cursor: pointer;
+  }
+  .kartu:hover { border-color: var(--accent); }
+  .foto {
+    aspect-ratio: 1 / 1;
+    display: grid; place-items: center;
+    background: #F6F8FA;
+    border-bottom: 1px solid var(--line);
+  }
+  .foto img { width: 100%; height: 100%; object-fit: contain; padding: 10px; }
+  .foto span { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 2rem; color: var(--line); }
+  .info { padding: 12px 14px 14px; }
+  .info h3 { font-size: 1rem; font-weight: 600; }
+  .info p {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: .88rem;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .kosong { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--muted); }
+
+  /* ---- Detail produk ---- */
+  dialog {
+    width: min(560px, calc(100% - 24px));
+    max-height: calc(100% - 24px);
+    margin: auto;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    overflow: auto;
+  }
+  dialog::backdrop { background: rgba(15, 23, 34, .6); }
+  .d-galeri { background: #F6F8FA; }
+  .d-geser {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .d-geser::-webkit-scrollbar { display: none; }
+  .d-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: center;
+    aspect-ratio: 4 / 3;
+    display: grid; place-items: center;
+  }
+  .d-slide img { width: 100%; height: 100%; object-fit: contain; padding: 14px; }
+  .d-slide span { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 3rem; color: var(--line); }
+  .d-dots { display: flex; justify-content: center; gap: 10px; padding: 4px 0 12px; }
+  .d-dot {
+    width: 10px; height: 10px; padding: 0;
+    border: none; border-radius: 50%;
+    background: var(--line);
+    cursor: pointer;
+  }
+  .d-dot[aria-current="true"] { background: var(--accent); }
+
+  .d-pembungkus { position: relative; }
+  .d-panah {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; padding: 0 0 4px;
+    border: none; border-radius: 50%;
+    background: rgba(22, 32, 43, .65); color: #fff;
+    font-size: 1.8rem; line-height: 1;
+    display: grid; place-items: center;
+    cursor: pointer;
+  }
+  .d-panah:hover { background: rgba(22, 32, 43, .9); }
+  .d-panah.kiri { left: 10px; }
+  .d-panah.kanan { right: 10px; }
+
+  .d-putar { background: #F6F8FA; }
+  .spin {
+    aspect-ratio: 4 / 3;
+    display: grid; place-items: center;
+    touch-action: pan-y;
+    cursor: grab;
+    user-select: none; -webkit-user-select: none;
+  }
+  .spin:active { cursor: grabbing; }
+  .spin img { width: 100%; height: 100%; object-fit: contain; padding: 14px; pointer-events: none; }
+  .spin-status { padding: 0 12px 12px; text-align: center; color: var(--muted); font-size: .88rem; }
+  .btn-putar {
+    margin-bottom: 14px;
+    padding: 8px 16px;
+    border: 1.5px solid var(--accent);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent);
+    font: inherit; font-weight: 600;
+    cursor: pointer;
+  }
+  .d-isi { padding: 18px 20px 22px; }
+  .d-isi h2 { font-size: 1.4rem; font-weight: 800; }
+  .d-isi ul { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
+  .d-isi li { margin-top: 4px; }
+  .tutup {
+    margin-top: 18px;
+    padding: 10px 20px;
+    border: none; border-radius: 10px;
+    background: var(--ink); color: #fff;
+    font: inherit; font-weight: 600;
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .slide { transition: none; }
+  }
+  [hidden] { display: none !important; }
+  .info p.harga { color: var(--ink); font-weight: 600; -webkit-line-clamp: 1; }
+  .d-harga { margin-top: 10px; font-weight: 800; font-size: 1.2rem; }
+  .d-beli { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--line); }
+  .d-beli label { display: block; margin-top: 12px; font-weight: 600; font-size: .9rem; }
+  .d-beli input, .d-beli textarea { display: block; width: 100%; margin-top: 4px; padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; }
+  .d-beli textarea { min-height: 80px; }
+  .d-total { margin-top: 12px; font-weight: 600; }
+  .d-captcha { margin-top: 12px; }
+  .btn-pesan, .btn-wa { display: block; width: 100%; margin-top: 14px; padding: 12px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
+  .btn-wa { background: #1B7F3B; }
+  .btn-pesan:disabled { opacity: .55; cursor: not-allowed; }
+  .d-pesan { margin-top: 10px; font-size: .92rem; font-weight: 500; }
+  .d-pesan.salah { color: #C62828; }
+  .d-pesan.benar { color: #1B7F3B; }
+</style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+</head>
+<body>
+
+<main class="wrap">
+  <section class="banner" id="banner" aria-label="Banner VBR"></section>
+
+  <div class="kepala">
+    <div>
+      <h1>Casing PC VBR</h1>
+      <p id="jumlah">Memuat produk…</p>
+    </div>
+    <input class="cari" id="cari" type="search" placeholder="Cari nama casing" aria-label="Cari nama casing">
+  </div>
+
+  <section class="grid" id="grid"></section>
+</main>
+
+<dialog id="detail">
+  <div class="d-galeri" id="dGaleri"></div>
+  <div class="d-putar" id="dPutar" hidden></div>
+  <div class="d-isi">
+    <button class="btn-putar" id="dBtn360" type="button" hidden>Putar 360°</button>
+    <h2 id="dNama"></h2>
+    <ul id="dList"></ul>
+    <div class="d-beli" id="dBeli"></div>
+    <button class="tutup" id="dTutup" type="button">Tutup</button>
+  </div>
+</dialog>
+
+<script>
+/* ============================================================
+   PENGATURAN
+   - FOTO   : folder gambar (nama file saja yang ditulis di data)
+   - API_URL: nanti diisi URL Apps Script. Kosong = pakai DATA_CONTOH
+   ============================================================ */
+const FOTO = 'foto/';
+const WA_ADMIN = '6285890056992';            // nomor WhatsApp admin format 628xxxxxxxxxx (tanpa + dan spasi)
+const TURNSTILE_SITEKEY = '0x4AAAAAAFnxjNX-qad3QCXF';   // site key Cloudflare Turnstile (publik)
+const BATAS_QTY = 3;            // lebih dari ini diarahkan ke WhatsApp admin
+const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
+
+/* Data contoh. Nanti digantikan data dari spreadsheet.
+   "gambar": satu atau beberapa nama file, dipisah tanda |
+             (gambar pertama jadi foto kotak, semuanya jadi slide di pop-up)
+   "putar360": opsional. Dua cara menulis:
+             a) daftar nama file: 1p100-01.jpeg|2p100-02.jpeg|3p100-03.jpeg
+             b) awalan|jumlah: vbr-aegis-m1-360|24
+                (file: vbr-aegis-m1-360-01.webp sampai ...-24.webp)
+   "detail": pisahkan tiap baris dengan tanda |  */
+const DATA_CONTOH = {
+  banner: [
+    { gambar: 'vbr-banner1.webp', judul: 'Casing PC VBR' },
+    { gambar: 'vbr-banner2.webp', judul: 'Airflow lega, rakit lebih rapi' },
+    { gambar: 'vbr-banner3.webp', judul: 'Pilihan casing untuk semua kebutuhan' }
+  ],
+  produk: [
+    { nama: 'VBR Aegis M1',  gambar: 'vbr-aegis-m1.webp|vbr-aegis-m1-2.webp|vbr-aegis-m1-3.webp', putar360: 'vbr-aegis-m1-360|24',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel samping: Kaca tempered|Kipas bawaan: 3 unit' },
+    { nama: 'VBR Aegis M2',  gambar: 'vbr-aegis-m2.webp',  detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX, ITX|Panel depan: Mesh|Kipas bawaan: 4 unit' },
+    { nama: 'VBR Nova Mini', gambar: 'vbr-nova-mini.webp', detail: 'Ukuran: Mini Tower|Motherboard: mATX, ITX|Panel samping: Akrilik|Kipas bawaan: 1 unit' },
+    { nama: 'VBR Titan X',   gambar: 'vbr-titan-x.webp',   detail: 'Ukuran: Full Tower|Motherboard: E-ATX, ATX, mATX|Panel samping: Kaca tempered|Dukungan radiator: 360 mm' },
+    { nama: 'VBR Lite 01',   gambar: 'vbr-lite-01.webp',   detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX|Panel samping: Akrilik|Cocok untuk PC kantor' },
+    { nama: 'VBR Lite 02',   gambar: 'vbr-lite-02.webp',   detail: 'Ukuran: Mid Tower|Motherboard: ATX, mATX|Panel depan: Mesh|Cocok untuk PC kantor' }
+  ]
+};
+
+/* ============================================================
+   AMBIL DATA
+   Format yang diharapkan dari Apps Script nanti:
+   { banner: [{gambar, judul}], produk: [{nama, gambar, detail}] }
+   ============================================================ */
+async function ambilData() {
+  if (!API_URL) return DATA_CONTOH;
+  const res = await fetch(API_URL);
+  if (!res.ok) throw new Error('Gagal mengambil data');
+  return res.json();
+}
+
+/* ============================================================
+   BANNER (geser otomatis)
+   ============================================================ */
+function buatBanner(daftar) {
+  const box = document.getElementById('banner');
+  box.textContent = '';
+  if (!daftar || !daftar.length) { box.hidden = true; return; }
+
+  const slides = daftar.map((b, i) => {
+    const s = document.createElement('div');
+    s.className = 'slide' + (i === 0 ? ' aktif' : '');
+
+    if (b.gambar) {
+      const img = document.createElement('img');
+      img.src = FOTO + b.gambar;
+      img.alt = b.judul || 'Banner VBR';
+      img.loading = i === 0 ? 'eager' : 'lazy';
+      img.onerror = () => img.remove();   // kalau gambar belum ada, tampil judul
+      s.appendChild(img);
+    }
+    const t = document.createElement('div');
+    t.className = 'slide-judul';
+    t.textContent = b.judul || '';
+    s.appendChild(t);
+
+    box.appendChild(s);
+    return s;
+  });
+
+  if (slides.length < 2) return;
+
+  const dots = document.createElement('div');
+  dots.className = 'dots';
+  const tombol = slides.map((_, i) => {
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'dot';
+    d.setAttribute('aria-label', 'Banner ' + (i + 1));
+    d.onclick = () => { pindah(i); mulaiTimer(); };
+    dots.appendChild(d);
+    return d;
+  });
+  box.appendChild(dots);
+
+  let now = 0, timer;
+  function pindah(i) {
+    slides[now].classList.remove('aktif');
+    now = (i + slides.length) % slides.length;
+    slides[now].classList.add('aktif');
+    tombol.forEach((d, k) => d.setAttribute('aria-current', k === now));
+  }
+  function mulaiTimer() {
+    clearInterval(timer);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    timer = setInterval(() => pindah(now + 1), 5000);
+  }
+  pindah(0);
+  mulaiTimer();
+  box.addEventListener('mouseenter', () => clearInterval(timer));
+  box.addEventListener('mouseleave', mulaiTimer);
+}
+
+/* ============================================================
+   PRODUK
+   ============================================================ */
+let semuaProduk = [];
+const grid = document.getElementById('grid');
+const jumlah = document.getElementById('jumlah');
+
+function barisDetail(teks) {
+  return String(teks || '').split('|').map(s => s.trim()).filter(Boolean);
+}
+
+/* Kolom gambar bisa berisi beberapa nama file dipisah | */
+function daftarGambar(p) {
+  return String(p.gambar || '').split('|').map(s => s.trim()).filter(Boolean);
+}
+
+function buatFoto(p, kelas) {
+  const wadah = document.createElement('div');
+  wadah.className = kelas;
+  const fallback = () => {
+    wadah.textContent = '';
+    const s = document.createElement('span');
+    s.textContent = (p.nama || '?').trim().charAt(0).toUpperCase();
+    wadah.appendChild(s);
+  };
+  const pertama = daftarGambar(p)[0];
+  if (!pertama) { fallback(); return wadah; }
+  const img = document.createElement('img');
+  img.src = FOTO + pertama;
+  img.alt = p.nama;
+  img.loading = 'lazy';
+  img.onerror = fallback;
+  wadah.appendChild(img);
+  return wadah;
+}
+
+function tampilkan(daftar) {
+  grid.textContent = '';
+  jumlah.textContent = daftar.length + ' produk';
+
+  if (!daftar.length) {
+    const k = document.createElement('p');
+    k.className = 'kosong';
+    k.textContent = 'Produk tidak ditemukan. Coba kata kunci lain.';
+    grid.appendChild(k);
+    return;
+  }
+
+  daftar.forEach(p => {
+    const kartu = document.createElement('button');
+    kartu.type = 'button';
+    kartu.className = 'kartu';
+    kartu.appendChild(buatFoto(p, 'foto'));
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const h = document.createElement('h3');
+    h.textContent = p.nama;
+    const ringkas = document.createElement('p');
+    ringkas.textContent = barisDetail(p.detail).join(' · ');
+    info.append(h, ringkas);
+    if (p.harga !== '' && p.harga !== undefined) {
+      const hg = document.createElement('p');
+      hg.className = 'harga';
+      hg.textContent = rp(p.harga) + (p.status === 'Habis' ? ' · Habis' : '');
+      info.appendChild(hg);
+    }
+    kartu.appendChild(info);
+
+    kartu.onclick = () => bukaDetail(p);
+    grid.appendChild(kartu);
+  });
+}
+
+/* ============================================================
+   DETAIL PRODUK
+   ============================================================ */
+const dlg = document.getElementById('detail');
+
+let geserAktif = null;   // fungsi pindah foto untuk pop-up yang sedang terbuka
+
+function buatGaleri(p) {
+  const g = document.getElementById('dGaleri');
+  g.textContent = '';
+
+  const daftar = daftarGambar(p);
+  const items = daftar.length ? daftar : [''];
+
+  const geser = document.createElement('div');
+  geser.className = 'd-geser';
+
+  items.forEach((nama, i) => {
+    const s = document.createElement('div');
+    s.className = 'd-slide';
+    const fallback = () => {
+      s.textContent = '';
+      const t = document.createElement('span');
+      t.textContent = (p.nama || '?').trim().charAt(0).toUpperCase();
+      s.appendChild(t);
+    };
+    if (!nama) {
+      fallback();
+    } else {
+      const img = document.createElement('img');
+      img.src = FOTO + nama;
+      img.alt = p.nama + ' foto ' + (i + 1);
+      img.loading = i === 0 ? 'eager' : 'lazy';
+      img.onerror = fallback;
+      s.appendChild(img);
+    }
+    geser.appendChild(s);
+  });
+  const bungkus = document.createElement('div');
+  bungkus.className = 'd-pembungkus';
+  bungkus.appendChild(geser);
+  g.appendChild(bungkus);
+
+  geserAktif = null;
+  if (items.length < 2) return;
+
+  // Panah kiri/kanan (untuk pengguna desktop) + tombol panah di keyboard
+  const pindahFoto = arah => {
+    const lebar = geser.clientWidth;
+    const sekarang = Math.round(geser.scrollLeft / lebar);
+    const tujuan = (sekarang + arah + items.length) % items.length;
+    geser.scrollTo({ left: tujuan * lebar, behavior: 'smooth' });
+  };
+  geserAktif = pindahFoto;
+  [['kiri', -1, '‹', 'Foto sebelumnya'], ['kanan', 1, '›', 'Foto berikutnya']].forEach(([kls, arah, simbol, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'd-panah ' + kls;
+    b.textContent = simbol;
+    b.setAttribute('aria-label', label);
+    b.onclick = () => pindahFoto(arah);
+    bungkus.appendChild(b);
+  });
+
+  const dots = document.createElement('div');
+  dots.className = 'd-dots';
+  const tombol = items.map((_, i) => {
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'd-dot';
+    d.setAttribute('aria-label', 'Foto ' + (i + 1));
+    d.onclick = () => geser.scrollTo({ left: i * geser.clientWidth, behavior: 'smooth' });
+    dots.appendChild(d);
+    return d;
+  });
+  g.appendChild(dots);
+
+  const tandai = i => tombol.forEach((d, k) => d.setAttribute('aria-current', k === i));
+  geser.addEventListener('scroll', () => tandai(Math.round(geser.scrollLeft / geser.clientWidth)));
+  tandai(0);
+}
+
+/* Kolom putar360 berisi: awalan|jumlah   contoh: vbr-aegis-m1-360|24
+   Nama file frame: awalan-01.webp sampai awalan-24.webp */
+function baca360(p) {
+  const bagian = String(p.putar360 || '').split(/[|,]/).map(s => s.trim()).filter(Boolean);
+
+  // Cara 1: daftar nama file lengkap, contoh: 1p100-01.jpeg|2p100-02.jpeg|3p100-03.jpeg
+  if (bagian.length >= 2 && bagian.every(s => /\.(webp|jpe?g|png)$/i.test(s))) {
+    return { daftar: bagian, jumlah: bagian.length };
+  }
+  // Cara 2: awalan|jumlah, contoh: vbr-aegis-m1-360|24
+  const jumlah = parseInt(bagian[1], 10);
+  if (bagian.length === 2 && jumlah >= 2) return { awalan: bagian[0], jumlah };
+  return null;
+}
+
+function siapkan360(p) {
+  const btn = document.getElementById('dBtn360');
+  const gal = document.getElementById('dGaleri');
+  const put = document.getElementById('dPutar');
+
+  put.hidden = true;
+  put.textContent = '';
+  gal.hidden = false;
+  btn.textContent = 'Putar 360°';
+  btn.onclick = null;
+
+  const info = baca360(p);
+  btn.hidden = !info;
+  if (!info) return;
+
+  let terbuka = false;
+  btn.onclick = () => {
+    terbuka = !terbuka;
+    gal.hidden = terbuka;
+    put.hidden = !terbuka;
+    btn.textContent = terbuka ? 'Lihat foto' : 'Putar 360°';
+    if (terbuka) mulaiPutar(put, p, info);
+  };
+}
+
+function mulaiPutar(wadah, p, info) {
+  if (wadah.firstChild) return;   // sudah dibuat sebelumnya
+
+  const total = info.jumlah;
+  const frame = i => info.daftar
+    ? FOTO + info.daftar[i]
+    : FOTO + info.awalan + '-' + String(i + 1).padStart(2, '0') + '.webp';
+
+  const area = document.createElement('div');
+  area.className = 'spin';
+  area.tabIndex = 0;
+  area.setAttribute('role', 'img');
+  area.setAttribute('aria-label', p.nama + ', tampilan 360 derajat. Geser untuk memutar.');
+  const img = document.createElement('img');
+  img.alt = '';
+  img.draggable = false;
+  area.appendChild(img);
+
+  const status = document.createElement('p');
+  status.className = 'spin-status';
+  status.textContent = 'Memuat foto 360°…';
+  wadah.append(area, status);
+
+  let idx = 0, siap = false, menggeser = false, mulaiX = 0, mulaiIdx = 0;
+  let muat = 0, gagal = 0;
+
+  const tampil = i => {
+    idx = ((i % total) + total) % total;
+    img.src = frame(idx);
+  };
+
+  const cekSelesai = () => {
+    const selesai = muat + gagal;
+    if (selesai < total) {
+      status.textContent = 'Memuat foto 360° ' + selesai + '/' + total;
+      return;
+    }
+    if (gagal) {
+      wadah.textContent = '';
+      const m = document.createElement('p');
+      m.className = 'spin-status';
+      m.style.padding = '40px 12px';
+      m.textContent = 'Foto 360° belum tersedia untuk produk ini.';
+      wadah.appendChild(m);
+      return;
+    }
+    siap = true;
+    status.textContent = 'Geser ke kiri atau kanan untuk memutar';
+  };
+
+  // Muat semua frame dulu supaya putarannya mulus
+  for (let i = 0; i < total; i++) {
+    const im = new Image();
+    im.onload = () => { muat++; cekSelesai(); };
+    im.onerror = () => { gagal++; cekSelesai(); };
+    im.src = frame(i);
+  }
+  tampil(0);
+
+  area.addEventListener('pointerdown', e => {
+    if (!siap) return;
+    menggeser = true;
+    mulaiX = e.clientX;
+    mulaiIdx = idx;
+    area.setPointerCapture(e.pointerId);
+  });
+  area.addEventListener('pointermove', e => {
+    if (!menggeser) return;
+    // geser selebar kotak = satu putaran penuh
+    const langkah = Math.round((e.clientX - mulaiX) / ((area.clientWidth || 300) / total));
+    tampil(mulaiIdx - langkah);
+  });
+  const lepas = () => { menggeser = false; };
+  area.addEventListener('pointerup', lepas);
+  area.addEventListener('pointercancel', lepas);
+  area.addEventListener('keydown', e => {
+    if (!siap) return;
+    if (e.key === 'ArrowLeft')  { tampil(idx + 1); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { tampil(idx - 1); e.preventDefault(); }
+  });
+}
+
+function bukaDetail(p) {
+  buatGaleri(p);
+  siapkan360(p);
+  buatBeli(p);
+  document.getElementById('dNama').textContent = p.nama;
+  const ul = document.getElementById('dList');
+  ul.textContent = '';
+  barisDetail(p.detail).forEach(t => {
+    const li = document.createElement('li');
+    li.textContent = t;
+    ul.appendChild(li);
+  });
+  dlg.showModal();
+}
+/* ============================================================
+   HARGA & CHECKOUT (verifikasi harga, stok, dan captcha dilakukan di Apps Script)
+   ============================================================ */
+const rp = n => 'Rp ' + Number(n).toLocaleString('id-ID');
+const waLink = t => 'https://wa.me/' + WA_ADMIN + '?text=' + encodeURIComponent(t);
+const mk = (tag, a) => Object.assign(document.createElement(tag), a);
+let widgetId = null;
+
+function bersihkanCaptcha() {
+  if (widgetId !== null && window.turnstile) { try { turnstile.remove(widgetId); } catch (e) {} }
+  widgetId = null;
+}
+dlg.addEventListener('close', bersihkanCaptcha);
+
+function buatBeli(p) {
+  const box = document.getElementById('dBeli');
+  box.textContent = '';
+  bersihkanCaptcha();
+  const harga = Number(p.harga);
+  const bisa = p.harga !== '' && harga > 0 && p.status && p.status !== 'Habis';
+  box.appendChild(mk('p', { className: 'd-harga', textContent: p.harga !== '' ? rp(harga) + (p.status ? ' · ' + p.status : '') : 'Hubungi admin untuk harga' }));
+
+  const wa = (teks, label) => mk('a', { className: 'btn-wa', href: waLink(teks), target: '_blank', rel: 'noopener', textContent: label, hidden: !WA_ADMIN });
+  if (!bisa) { box.appendChild(wa('Halo admin VBR, saya mau tanya ' + p.nama + '.', 'Tanya admin via WhatsApp')); return; }
+
+  const form = mk('form');
+  const field = (label, el) => { const l = mk('label', { textContent: label }); l.appendChild(el); form.appendChild(l); return el; };
+  const qty = field('Jumlah', mk('input', { type: 'number', min: 1, max: 99, value: 1, required: true }));
+  const nm = field('Nama penerima', mk('input', { type: 'text', maxLength: 60, required: true, autocomplete: 'name' }));
+  const hp = field('No. HP / WhatsApp', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'tel', placeholder: '0812...' }));
+  const al = field('Alamat lengkap', mk('textarea', { maxLength: 250, required: true, autocomplete: 'street-address' }));
+  const total = mk('p', { className: 'd-total' });
+  const cap = mk('div', { className: 'd-captcha' });
+  const kirim = mk('button', { type: 'submit', className: 'btn-pesan', textContent: 'Pesan sekarang' });
+  const ket = mk('p', { className: 'd-pesan', role: 'status' });
+  const waBanyak = wa('', 'Pesan jumlah banyak via WhatsApp');
+  form.append(total, cap, kirim);
+  box.append(form, waBanyak, ket);
+
+  const tulis = (t, salah) => { ket.className = 'd-pesan ' + (salah ? 'salah' : 'benar'); ket.textContent = t; };
+  const segarkan = () => {
+    const n = parseInt(qty.value, 10) || 1, banyak = n > BATAS_QTY;
+    total.textContent = 'Total: ' + rp(harga * Math.max(n, 1));
+    [nm, hp, al].forEach(el => { el.closest('label').hidden = banyak; });
+    cap.hidden = kirim.hidden = banyak;
+    waBanyak.hidden = !banyak || !WA_ADMIN;
+    waBanyak.href = waLink('Halo admin VBR, saya mau pesan ' + n + ' unit ' + p.nama + '.');
+  };
+  qty.addEventListener('input', segarkan);
+  segarkan();
+
+  if (!TURNSTILE_SITEKEY || !window.turnstile) {
+    kirim.disabled = true;
+    tulis('Checkout online belum aktif. Silakan pesan lewat WhatsApp admin.', true);
+    if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya mau pesan ' + p.nama + '.', 'Pesan via WhatsApp'));
+  } else {
+    widgetId = turnstile.render(cap, { sitekey: TURNSTILE_SITEKEY });
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const tk = widgetId !== null ? turnstile.getResponse(widgetId) : '';
+    if (!tk) return tulis('Selesaikan verifikasi captcha dulu.', true);
+    kirim.disabled = true;
+    tulis('Mengirim pesanan…', false);
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ aksi: 'pesan', produk: p.nama, jumlah: Number(qty.value), pembeli: nm.value, hp: hp.value, alamat: al.value, captcha: tk })
+      });
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.pesan || 'Pesanan gagal dikirim');
+      form.hidden = true;
+      tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + '. Kirim ID ini ke admin untuk pembayaran.', false);
+      if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total), 'Kirim konfirmasi ke admin'));
+    } catch (err) {
+      tulis(err.message, true);
+      if (/admin/i.test(err.message) && WA_ADMIN && !box.querySelector('.tambah')) {
+        const a = wa('Halo admin VBR, saya ' + nm.value + ' (HP ' + hp.value + ') ingin menambah pesanan ' + p.nama + '.', 'Tambah pesanan via WhatsApp admin');
+        a.classList.add('tambah');
+        box.appendChild(a);
+      }
+      if (widgetId !== null) turnstile.reset(widgetId);
+      kirim.disabled = false;
+    }
+  });
+}
+
+document.getElementById('dTutup').onclick = () => dlg.close();
+dlg.addEventListener('keydown', e => {
+  if (!geserAktif || document.getElementById('dGaleri').hidden) return;
+  if (e.key === 'ArrowLeft')  { geserAktif(-1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { geserAktif(1);  e.preventDefault(); }
+});
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+/* ============================================================
+   PENCARIAN
+   ============================================================ */
+document.getElementById('cari').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  tampilkan(semuaProduk.filter(p => p.nama.toLowerCase().includes(q)));
+});
+
+/* ============================================================
+   MULAI
+   ============================================================ */
+ambilData()
+  .then(d => {
+    buatBanner(d.banner);
+    semuaProduk = d.produk || [];
+    tampilkan(semuaProduk);
+  })
+  .catch(() => {
+    jumlah.textContent = 'Data tidak bisa dimuat. Muat ulang halaman untuk mencoba lagi.';
+  });
+</script>
+</body>
+</html>
