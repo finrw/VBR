@@ -441,7 +441,7 @@ function tampilkan(daftar) {
     if (p.harga !== '' && p.harga !== undefined) {
       const hg = document.createElement('p');
       hg.className = 'harga';
-      hg.textContent = rp(p.harga) + (p.status === 'Habis' ? ' · Habis' : '');
+      hg.textContent = rp(p.harga) + (infoStok(p) ? ' · ' + infoStok(p) : '');
       info.appendChild(hg);
     }
     kartu.appendChild(info);
@@ -673,6 +673,8 @@ function bukaDetail(p) {
    HARGA & CHECKOUT (verifikasi harga, stok, dan captcha dilakukan di Apps Script)
    ============================================================ */
 const rp = n => 'Rp ' + Number(n).toLocaleString('id-ID');
+const infoStok = p => p.status === 'Habis' ? 'Habis' : (p.stok !== '' && p.stok !== undefined ? 'Stok ' + p.stok : (p.status || ''));
+const normHp = v => { let s = String(v).replace(/[^0-9+]/g, ''); if (s.indexOf('+62') === 0) s = '0' + s.slice(3); else if (s.indexOf('62') === 0) s = '0' + s.slice(2); return s; };
 const waLink = t => 'https://wa.me/' + WA_ADMIN + '?text=' + encodeURIComponent(t);
 const mk = (tag, a) => Object.assign(document.createElement(tag), a);
 let widgetId = null;
@@ -689,16 +691,17 @@ function buatBeli(p) {
   bersihkanCaptcha();
   const harga = Number(p.harga);
   const bisa = p.harga !== '' && harga > 0 && p.status && p.status !== 'Habis';
-  box.appendChild(mk('p', { className: 'd-harga', textContent: p.harga !== '' ? rp(harga) + (p.status ? ' · ' + p.status : '') : 'Hubungi admin untuk harga' }));
+  box.appendChild(mk('p', { className: 'd-harga', textContent: p.harga !== '' ? rp(harga) + (infoStok(p) ? ' · ' + infoStok(p) : '') : 'Hubungi admin untuk harga' }));
 
   const wa = (teks, label) => mk('a', { className: 'btn-wa', href: waLink(teks), target: '_blank', rel: 'noopener', textContent: label, hidden: !WA_ADMIN });
   if (!bisa) { box.appendChild(wa('Halo admin VBR, saya mau tanya ' + p.nama + '.', 'Tanya admin via WhatsApp')); return; }
 
   const form = mk('form');
   const field = (label, el) => { const l = mk('label', { textContent: label }); l.appendChild(el); form.appendChild(l); return el; };
-  const qty = field('Jumlah', mk('input', { type: 'number', min: 1, max: 99, value: 1, required: true }));
+  const qty = field('Jumlah', mk('input', { type: 'number', min: 1, max: (Number(p.stok) > 0 ? Math.min(99, Number(p.stok)) : 99), value: 1, required: true }));
   const nm = field('Nama penerima', mk('input', { type: 'text', maxLength: 60, required: true, autocomplete: 'name' }));
   const hp = field('No. HP / WhatsApp', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'tel', placeholder: '0812...' }));
+  const hp2 = field('Ketik ulang No. HP', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'off', placeholder: 'Ulangi nomor HP' }));
   const al = field('Alamat lengkap', mk('textarea', { maxLength: 250, required: true, autocomplete: 'street-address' }));
   const total = mk('p', { className: 'd-total' });
   const cap = mk('div', { className: 'd-captcha' });
@@ -712,7 +715,7 @@ function buatBeli(p) {
   const segarkan = () => {
     const n = parseInt(qty.value, 10) || 1, banyak = n > BATAS_QTY;
     total.textContent = 'Total: ' + rp(harga * Math.max(n, 1));
-    [nm, hp, al].forEach(el => { el.closest('label').hidden = banyak; });
+    [nm, hp, hp2, al].forEach(el => { el.closest('label').hidden = banyak; });
     cap.hidden = kirim.hidden = banyak;
     waBanyak.hidden = !banyak || !WA_ADMIN;
     waBanyak.href = waLink('Halo admin VBR, saya mau pesan ' + n + ' unit ' + p.nama + '.');
@@ -731,6 +734,7 @@ function buatBeli(p) {
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const tk = widgetId !== null ? turnstile.getResponse(widgetId) : '';
+    if (normHp(hp.value) !== normHp(hp2.value)) return tulis('Nomor HP dan ketik ulangnya tidak sama. Periksa lagi.', true);
     if (!tk) return tulis('Selesaikan verifikasi captcha dulu.', true);
     kirim.disabled = true;
     tulis('Mengirim pesanan…', false);

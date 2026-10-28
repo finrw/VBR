@@ -53,6 +53,8 @@
   .hs button, .pes select { padding: 6px 10px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); font: inherit; }
   .pes { padding: 10px 0; border-top: 1px solid var(--line); font-size: .9rem; }
   .pes small { display: block; color: var(--muted); overflow-wrap: anywhere; }
+  .atasan { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--muted); font-size: .85rem; }
+  .atasan button { padding: 6px 14px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); font: inherit; }
 </style>
 </head>
 <body>
@@ -72,6 +74,7 @@
 
   <!-- ===== Admin ===== -->
   <div id="boxAdmin" hidden>
+    <div class="atasan"><span id="infoSync">Menyinkronkan…</span><button type="button" id="btnKeluar">Keluar</button></div>
     <section class="kartu"><h2>Ringkasan</h2><div class="kpi" id="kpi"></div></section>
     <section class="kartu"><h2>Harga &amp; stok</h2><div id="hs">Memuat…</div></section>
     <section class="kartu"><h2>Pesanan</h2><div id="pesananBox">Memuat…</div></section>
@@ -115,6 +118,12 @@ const UKURAN_FOTO = 1000;   // sisi terpanjang foto biasa (px)
 const UKURAN_360 = 800;     // sisi terpanjang tiap frame 360 (px)
 
 let password = '';
+let token = '';
+try { token = sessionStorage.getItem('vbr_token') || ''; } catch (e) {}
+function simpanToken(t) {
+  token = t;
+  try { t ? sessionStorage.setItem('vbr_token', t) : sessionStorage.removeItem('vbr_token'); } catch (e) {}
+}
 let daftarProduk = [];
 const $ = id => document.getElementById(id);
 
@@ -124,10 +133,13 @@ async function panggil(aksi, data) {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // tanpa preflight CORS
-    body: JSON.stringify(Object.assign({ aksi, password }, data || {}))
+    body: JSON.stringify(Object.assign({ aksi, password: token ? '' : password, token }, data || {}))
   });
   const j = await res.json();
-  if (!j.ok) throw new Error(j.pesan || 'Terjadi kesalahan');
+  if (!j.ok) {
+    if (/Sesi berakhir/.test(j.pesan || '')) keluar('Sesi berakhir, silakan masuk lagi.');
+    throw new Error(j.pesan || 'Terjadi kesalahan');
+  }
   return j;
 }
 
@@ -139,11 +151,13 @@ $('formLogin').addEventListener('submit', async e => {
   ps.className = 'pesan'; ps.textContent = 'Memeriksa…';
   password = $('pw').value;
   try {
-    await panggil('login');
+    const r = await panggil('login');
+    if (r.token) { simpanToken(r.token); password = ''; }
     $('boxLogin').hidden = true;
     $('boxAdmin').hidden = false;
     muatDashboard();
     muatDaftar();
+    mulaiSinkron();
   } catch (err) {
     password = '';
     ps.className = 'pesan salah';
@@ -152,6 +166,47 @@ $('formLogin').addEventListener('submit', async e => {
     btn.disabled = false;
   }
 });
+
+/* ---------- Sinkron otomatis, lanjut sesi, keluar ---------- */
+let timerSinkron = null, kotorWaktu = 0;
+function tandaiSinkron() {
+  $('infoSync').textContent = 'Tersinkron ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+}
+function sedangMengedit() {
+  const a = document.activeElement;
+  return Date.now() - kotorWaktu < 120000 || (a && ($('hs').contains(a) || $('pesananBox').contains(a)));
+}
+async function sinkronOtomatis() {
+  if (document.hidden || $('boxAdmin').hidden || sedangMengedit()) return;
+  await muatDashboard();
+}
+function mulaiSinkron() {
+  clearInterval(timerSinkron);
+  timerSinkron = setInterval(sinkronOtomatis, 120000);   // tiap 2 menit, hanya saat halaman terlihat
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sinkronOtomatis(); });
+$('hs').addEventListener('input', () => { kotorWaktu = Date.now(); });
+
+function keluar(pesan) {
+  clearInterval(timerSinkron);
+  if (token) {
+    fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ aksi: 'keluar', token }) }).catch(() => {});
+  }
+  simpanToken(''); password = '';
+  $('boxAdmin').hidden = true; $('boxLogin').hidden = false;
+  $('pw').value = '';
+  const ps = $('pesanLogin'); ps.className = 'pesan'; ps.textContent = pesan || '';
+}
+$('btnKeluar').addEventListener('click', () => keluar('Anda sudah keluar.'));
+
+(async () => {      // lanjutkan sesi kalau halaman dimuat ulang
+  if (!token) return;
+  try {
+    const d = await panggil('dashboard');
+    $('boxLogin').hidden = true; $('boxAdmin').hidden = false;
+    gambarDashboard(d); tandaiSinkron(); muatDaftar(); mulaiSinkron();
+  } catch (e) {}
+})();
 
 /* ---------- Daftar produk ---------- */
 async function muatDaftar() {
@@ -199,15 +254,14 @@ const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const STATUS = [['Baru', 'Pesanan baru'], ['Selesai', 'Selesai'], ['Dibatalkan', 'Dibatalkan']];
 
 async function muatDashboard() {
-  try { gambarDashboard(await panggil('dashboard')); }
-  catch (e) { $('pesananBox').textContent = 'Gagal memuat: ' + e.message; }
+  try { gambarDashboard(await panggil('dashboard')); tandaiSinkron(); }
+  catch (e) { $('infoSync').textContent = 'Gagal sinkron: ' + e.message; }
 }
 
 function gambarDashboard(d) {
   const isi = d.produk.filter(p => p.harga !== '' && p.stok !== '');
-  const unit = isi.reduce((s, p) => s + Number(p.stok), 0);
   const habis = isi.filter(p => Number(p.stok) === 0).length;
-  const kpi = [['Jenis produk', d.produk.length], ['Total unit stok', unit], ['Stok habis', habis]];
+  const kpi = d.produk.map(p => ['Stok ' + p.nama, p.stok === '' ? '-' : p.stok]).concat([['Stok habis', habis]]);
   const k = $('kpi'); k.textContent = '';
   kpi.forEach(([l, v]) => {
     const b = document.createElement('div');
@@ -216,7 +270,7 @@ function gambarDashboard(d) {
     b.append(s, t); k.appendChild(b);
   });
 
-  const hs = $('hs'); hs.textContent = '';
+  const hs = $('hs'); hs.textContent = ''; kotorWaktu = 0;
   d.produk.forEach(p => {
     const r = document.createElement('div'); r.className = 'hs';
     const n = document.createElement('span'); n.textContent = p.nama;
