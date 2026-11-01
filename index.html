@@ -248,12 +248,42 @@
   .akun-order { border-top:1px solid var(--line); padding:12px 0; font-size:.9rem; }
   .akun-order small { display:block; color:var(--muted); }
   .akun-google { margin-top:12px; min-height:42px; }
+  .akun-isi select { display:block; width:100%; margin-top:4px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; }
+  .akun-isi input[readonly] { background:var(--bg); color:var(--muted); }
+  .akun-atau { margin:14px 0 4px; text-align:center; color:var(--muted); font-size:.88rem; }
+  .akun-pilih { display:grid; gap:10px; margin-top:10px; }
+  .akun-isi .akun-btn { width:100%; margin-top:10px; }
+  .akun-status.salah { color:#C62828; }
   .akun-keluar { margin:12px 8px 0 0; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; font:inherit; cursor:pointer; }
+
+  /* ---- Header: menu strip 3 + judul tengah ---- */
+  .topbar { position: sticky; top: 0; z-index: 50; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .topbar-in { max-width: 1120px; margin: 0 auto; padding: 0 8px; height: 56px; display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; }
+  .topbar-judul { text-align: center; font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: clamp(1.1rem, 4.5vw, 1.5rem); letter-spacing: .02em; }
+  .btn-menu { width: 44px; height: 44px; padding: 0; border: none; border-radius: 10px; background: transparent; display: grid; place-content: center; gap: 5px; cursor: pointer; }
+  .btn-menu span { display: block; width: 22px; height: 2.5px; border-radius: 2px; background: var(--ink); }
+  .btn-menu:hover { background: var(--bg); }
+  .menu-panel { position: absolute; top: 56px; left: 8px; width: min(280px, calc(100% - 16px)); padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(15,23,34,.18); }
+  .menu-panel[hidden] { display: none; }
+  .menu-panel .akun-email { display: block; margin-bottom: 10px; }
+  .menu-panel .akun-btn { width: 100%; }
 </style>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <button class="btn-menu" id="btnMenu" type="button" aria-label="Menu" aria-expanded="false" aria-controls="menuPanel"><span></span><span></span><span></span></button>
+    <div class="topbar-judul">VBR Casing PC</div>
+    <div></div>
+  </div>
+  <div class="menu-panel" id="menuPanel" hidden>
+    <span class="akun-email" id="akunRingkas">Belum login</span>
+    <button class="akun-btn" id="btnAkun" type="button">Daftar / Masuk</button>
+  </div>
+</header>
 
 <main class="wrap">
   <section class="banner" id="banner" aria-label="Banner VBR"></section>
@@ -266,10 +296,6 @@
     <input class="cari" id="cari" type="search" placeholder="Cari nama casing" aria-label="Cari nama casing">
   </div>
 
-  <div class="akun-bar">
-    <span class="akun-email" id="akunRingkas">Belum login</span>
-    <button class="akun-btn" id="btnAkun" type="button">Akun &amp; Pesanan</button>
-  </div>
   <section class="grid" id="grid"></section>
 </main>
 
@@ -287,22 +313,68 @@
 
 <dialog id="akunDlg">
   <div class="akun-isi">
-    <h2>Akun pelanggan</h2>
-    <p id="akunIntro">Login dengan Google untuk checkout dan melihat riwayat pesanan.</p>
-    <div class="akun-google" id="googleBtnAkun"></div>
+    <h2 id="akunJudul">Daftar / Masuk</h2>
     <p class="akun-status" id="akunStatus" role="status"></p>
+
+    <section id="akunMasuk">
+      <p>Daftar atau masuk dulu supaya bisa membeli barang.</p>
+      <div class="akun-google" id="googleBtnAkun"></div>
+      <p class="akun-atau">atau</p>
+      <div class="akun-pilih">
+        <button class="akun-btn" id="btnPilihDaftar" type="button">Daftar dengan email</button>
+        <button class="akun-btn" id="btnPilihMasuk" type="button">Masuk dengan email</button>
+      </div>
+    </section>
+
+    <section id="akunDaftar" hidden>
+      <form id="formDaftar">
+        <div id="fieldsDaftar"></div>
+        <div class="d-captcha" id="capDaftar"></div>
+        <button class="btn-pesan" type="submit" id="btnKirimKodeDaftar">Kirim kode ke email</button>
+        <button class="akun-btn" type="button" data-kembali>Kembali</button>
+      </form>
+    </section>
+
+    <section id="akunMasukEmail" hidden>
+      <form id="formMasukEmail">
+        <label for="masukEmail">Email terdaftar</label>
+        <input id="masukEmail" type="email" maxlength="120" autocomplete="email" required>
+        <div class="d-captcha" id="capMasuk"></div>
+        <button class="btn-pesan" type="submit" id="btnKirimKodeMasuk">Kirim kode ke email</button>
+        <button class="akun-btn" type="button" data-kembali>Kembali</button>
+      </form>
+    </section>
+
+    <section id="akunKode" hidden>
+      <form id="formKode">
+        <p id="kodeInfo"></p>
+        <label for="inputKode">Kode 6 angka</label>
+        <input id="inputKode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+        <button class="btn-pesan" type="submit" id="btnKode">Verifikasi</button>
+        <button class="akun-btn" type="button" data-kembali>Kembali</button>
+      </form>
+    </section>
+
+    <section id="akunLengkapi" hidden>
+      <p>Akun Anda belum terdaftar lengkap. Lengkapi data berikut supaya bisa membeli.</p>
+      <form id="formLengkapi">
+        <div id="fieldsLengkapi"></div>
+        <button class="btn-pesan" type="submit" id="btnLengkapi">Selesaikan pendaftaran</button>
+      </form>
+      <button class="akun-keluar" type="button" data-keluar>Keluar dari akun</button>
+    </section>
+
     <section id="akunProfil" hidden>
       <p class="akun-email" id="akunEmail"></p>
       <form id="formProfil">
-        <label for="akunNama">Nama penerima</label><input id="akunNama" type="text" maxlength="80" autocomplete="name" required>
-        <label for="akunHp">Nomor HP / WhatsApp</label><input id="akunHp" type="tel" maxlength="16" autocomplete="tel" placeholder="0812..." required>
-        <label for="akunAlamat">Alamat pengiriman</label><textarea id="akunAlamat" maxlength="250" autocomplete="street-address" required></textarea>
+        <div id="fieldsProfil"></div>
         <button class="btn-pesan" type="submit" id="btnSimpanProfil">Simpan profil</button>
       </form>
       <h3 style="margin-top:22px">Riwayat pesanan</h3>
       <div id="akunPesanan"></div>
-      <button class="akun-keluar" id="btnKeluarAkun" type="button">Keluar dari akun</button>
+      <button class="akun-keluar" type="button" data-keluar>Keluar dari akun</button>
     </section>
+
     <button class="tutup" id="tutupAkun" type="button">Tutup</button>
   </div>
 </dialog>
@@ -733,10 +805,16 @@ async function panggilAPI(aksi, data) {
   if (!j.ok) throw new Error(j.pesan || 'Permintaan gagal');
   return j;
 }
+function segarkanRingkas() {
+  let t = 'Belum login';
+  if (customerToken) t = customerUser ? customerUser.email + (customerUser.terdaftar ? '' : ' (belum lengkap)') : 'Memeriksa sesi…';
+  $('akunRingkas').textContent = t;
+  $('btnAkun').textContent = customerToken ? 'Akun & Pesanan' : 'Daftar / Masuk';
+}
 function simpanSesiPelanggan(t) {
   customerToken = t || '';
   try { customerToken ? sessionStorage.setItem('vbr_customer_token', customerToken) : sessionStorage.removeItem('vbr_customer_token'); } catch (e) {}
-  $('akunRingkas').textContent = customerUser ? customerUser.email : 'Belum login';
+  segarkanRingkas();
 }
 function siapkanTombolGoogle(id) {
   const wadah = document.getElementById(id);
@@ -747,53 +825,96 @@ function siapkanTombolGoogle(id) {
   }
   const coba = () => {
     if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(coba, 300); return; }
-    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: tanganiLoginGoogle, auto_select: false });
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: tanganiLoginGoogle, auto_select: true });
     google.accounts.id.renderButton(wadah, { theme:'outline', size:'large', text:'signin_with', shape:'rectangular', width:280, locale:'id' });
   };
   coba();
 }
 async function tanganiLoginGoogle(response) {
-  const status = $('akunStatus');
-  status.textContent = 'Memverifikasi akun Google…';
   try {
+    sAkun('Memverifikasi akun Google…');
     const r = await panggilAPI('customerLogin', { idToken: response.credential });
     customerUser = r.user || null;
     simpanSesiPelanggan(r.customerToken);
-    status.textContent = 'Login berhasil.';
+    sAkun(r.user && r.user.terdaftar ? 'Login berhasil.' : 'Lengkapi data pendaftaran di bawah.');
     await muatAkunPelanggan();
-    if (produkAktif && dlg.open) buatBeli(produkAktif);
   } catch (e) {
-    status.textContent = e.message;
+    sAkun(e.message, true);
   }
 }
+
+const sAkun = (t, salah) => { const el = $('akunStatus'); el.textContent = t || ''; el.className = 'akun-status' + (salah ? ' salah' : ''); };
+const BAGIAN_AKUN = ['akunMasuk', 'akunDaftar', 'akunMasukEmail', 'akunKode', 'akunLengkapi', 'akunProfil'];
+const JUDUL_AKUN = { akunMasuk:'Daftar / Masuk', akunDaftar:'Daftar akun baru', akunMasukEmail:'Masuk dengan email', akunKode:'Verifikasi email', akunLengkapi:'Lengkapi pendaftaran', akunProfil:'Akun saya' };
+let widgetAkun = null, emailKode = '', fDaftar = null, fLengkapi = null, fProfil = null;
+
+function hapusCaptchaAkun() {
+  if (widgetAkun !== null && window.turnstile) { try { turnstile.remove(widgetAkun); } catch (e) {} }
+  widgetAkun = null;
+}
+function pasangCaptchaAkun(el) {
+  if (!el) return;
+  el.textContent = '';
+  if (!TURNSTILE_SITEKEY || !window.turnstile) { el.textContent = 'Verifikasi captcha belum siap. Muat ulang halaman.'; return; }
+  widgetAkun = turnstile.render(el, { sitekey: TURNSTILE_SITEKEY });
+}
+const tokenCaptchaAkun = () => (widgetAkun !== null && window.turnstile) ? turnstile.getResponse(widgetAkun) : '';
+const ulangCaptchaAkun = () => { if (widgetAkun !== null && window.turnstile) { try { turnstile.reset(widgetAkun); } catch (e) {} } };
+
+function tampilAkun(id) {
+  hapusCaptchaAkun();
+  BAGIAN_AKUN.forEach(b => { $(b).hidden = (b !== id); });
+  $('akunJudul').textContent = JUDUL_AKUN[id];
+  if (id === 'akunDaftar') pasangCaptchaAkun($('capDaftar'));
+  if (id === 'akunMasukEmail') pasangCaptchaAkun($('capMasuk'));
+}
+
+function hariIni() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function isiField(wadah, o) {
+  wadah.textContent = '';
+  const f = {}, n = o.nilai || {};
+  const baris = (label, el, kunci) => { const l = mk('label', { textContent: label }); l.appendChild(el); wadah.appendChild(l); f[kunci] = el; };
+  baris('Nama', mk('input', { type:'text', maxLength:80, required:true, autocomplete:'name' }), 'nama');
+  baris('Bio profil (boleh dikosongkan)', mk('textarea', { maxLength:200, rows:2 }), 'bio');
+  const jk = mk('select', { required:true });
+  [['', 'Pilih…'], ['Laki-laki', 'Laki-laki'], ['Perempuan', 'Perempuan']].forEach(x => jk.appendChild(new Option(x[1], x[0])));
+  baris('Jenis kelamin', jk, 'jk');
+  baris('Tanggal lahir', mk('input', { type:'date', required:true, min:'1920-01-01', max:hariIni(), autocomplete:'bday' }), 'tgl');
+  baris('No. HP WhatsApp', mk('input', { type:'tel', maxLength:16, required:true, autocomplete:'tel', placeholder:'0812...' }), 'hp');
+  baris('Email', mk('input', { type:'email', maxLength:120, required:true, autocomplete:'email', readOnly:!o.emailBisaDiubah }), 'email');
+  if (o.alamat) baris('Alamat pengiriman (boleh dikosongkan)', mk('textarea', { maxLength:250, rows:3, autocomplete:'street-address' }), 'alamat');
+  f.nama.value = n.nama || ''; f.bio.value = n.bio || ''; f.jk.value = n.jk || '';
+  f.tgl.value = n.tgl || ''; f.hp.value = n.hp || ''; f.email.value = n.email || '';
+  if (f.alamat) f.alamat.value = n.alamat || '';
+  return f;
+}
+const ambilNilai = f => ({ nama:f.nama.value, bio:f.bio.value, jk:f.jk.value, tgl:f.tgl.value, hp:f.hp.value, email:f.email.value, alamat: f.alamat ? f.alamat.value : undefined });
+
 async function muatAkunPelanggan() {
   if (!customerToken) {
-    $('akunProfil').hidden = true;
-    $('googleBtnAkun').hidden = false;
-    $('akunIntro').hidden = false;
-    siapkanTombolGoogle('googleBtnAkun');
-    $('akunRingkas').textContent = 'Belum login';
+    customerUser = null; segarkanRingkas();
+    tampilAkun('akunMasuk'); siapkanTombolGoogle('googleBtnAkun');
     return;
   }
   try {
     const d = await panggilAPI('customerProfile', { customerToken });
-    customerUser = d.user;
-    $('akunProfil').hidden = false;
-    $('googleBtnAkun').hidden = true;
-    $('akunIntro').hidden = true;
-    $('akunEmail').textContent = 'Login sebagai ' + d.user.email;
-    $('akunNama').value = d.user.nama || '';
-    $('akunHp').value = d.user.hp || '';
-    $('akunAlamat').value = d.user.alamat || '';
-    gambarPesananPelanggan(d.pesanan || []);
-    $('akunRingkas').textContent = d.user.email;
+    customerUser = d.user; segarkanRingkas();
+    if (d.user.terdaftar) {
+      tampilAkun('akunProfil');
+      $('akunEmail').textContent = 'Masuk sebagai ' + d.user.email;
+      fProfil = isiField($('fieldsProfil'), { alamat:true, nilai:d.user });
+      gambarPesananPelanggan(d.pesanan || []);
+    } else {
+      tampilAkun('akunLengkapi');
+      fLengkapi = isiField($('fieldsLengkapi'), { nilai:d.user });
+    }
   } catch (e) {
     simpanSesiPelanggan(''); customerUser = null;
-    $('akunStatus').textContent = e.message;
-    $('akunProfil').hidden = true;
-    $('googleBtnAkun').hidden = false;
-    $('akunIntro').hidden = false;
-    siapkanTombolGoogle('googleBtnAkun');
+    sAkun(e.message, true);
+    tampilAkun('akunMasuk'); siapkanTombolGoogle('googleBtnAkun');
   }
 }
 function gambarPesananPelanggan(daftar) {
@@ -807,21 +928,84 @@ function gambarPesananPelanggan(daftar) {
     row.append(b, small, total); box.appendChild(row);
   });
 }
-$('btnAkun').addEventListener('click', async () => { $('akunStatus').textContent = ''; await muatAkunPelanggan(); $('akunDlg').showModal(); });
+
+$('btnAkun').addEventListener('click', async () => {
+  sAkun('');
+  $('akunDlg').showModal();
+  if (customerToken) { BAGIAN_AKUN.forEach(b => { $(b).hidden = true; }); sAkun('Memuat akun…'); }
+  await muatAkunPelanggan();
+  if ($('akunStatus').textContent === 'Memuat akun…') sAkun('');
+});
 $('tutupAkun').addEventListener('click', () => $('akunDlg').close());
 $('akunDlg').addEventListener('click', e => { if (e.target === $('akunDlg')) $('akunDlg').close(); });
-$('formProfil').addEventListener('submit', async e => {
-  e.preventDefault(); const b = $('btnSimpanProfil'); b.disabled = true; $('akunStatus').textContent = 'Menyimpan profil…';
+$('akunDlg').addEventListener('close', hapusCaptchaAkun);
+
+$('btnPilihDaftar').addEventListener('click', () => {
+  sAkun('');
+  fDaftar = isiField($('fieldsDaftar'), { emailBisaDiubah:true });
+  tampilAkun('akunDaftar');
+});
+$('btnPilihMasuk').addEventListener('click', () => { sAkun(''); tampilAkun('akunMasukEmail'); });
+document.querySelectorAll('[data-kembali]').forEach(b => b.addEventListener('click', () => {
+  sAkun(''); tampilAkun('akunMasuk'); siapkanTombolGoogle('googleBtnAkun');
+}));
+
+async function kirimKode(tombol, data) {
+  const tk = tokenCaptchaAkun();
+  if (!tk) return sAkun('Selesaikan verifikasi captcha dulu.', true);
+  tombol.disabled = true; sAkun('Mengirim kode ke email…');
   try {
-    const d = await panggilAPI('customerSaveProfile', { customerToken, nama:$('akunNama').value, hp:$('akunHp').value, alamat:$('akunAlamat').value });
-    customerUser = d.user; $('akunStatus').textContent = 'Profil berhasil disimpan.'; await muatAkunPelanggan();
-  } catch (err) { $('akunStatus').textContent = err.message; }
+    await panggilAPI('customerKirimKode', Object.assign({ captcha: tk }, data));
+    emailKode = String(data.email).trim().toLowerCase();
+    tampilAkun('akunKode');
+    $('kodeInfo').textContent = 'Kode 6 angka sudah dikirim ke ' + emailKode + '. Cek juga folder Spam.';
+    $('inputKode').value = ''; $('inputKode').focus();
+    sAkun('');
+  } catch (err) {
+    sAkun(err.message, true); ulangCaptchaAkun();
+  } finally { tombol.disabled = false; }
+}
+$('formDaftar').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = ambilNilai(fDaftar);
+  kirimKode($('btnKirimKodeDaftar'), { mode:'daftar', email:v.email, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp });
+});
+$('formMasukEmail').addEventListener('submit', e => {
+  e.preventDefault();
+  kirimKode($('btnKirimKodeMasuk'), { mode:'masuk', email:$('masukEmail').value });
+});
+$('formKode').addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = $('btnKode'); b.disabled = true; sAkun('Memeriksa kode…');
+  try {
+    const r = await panggilAPI('customerVerifikasiKode', { email: emailKode, kode: $('inputKode').value });
+    customerUser = r.user; simpanSesiPelanggan(r.customerToken);
+    sAkun('Berhasil masuk.');
+    await muatAkunPelanggan();
+  } catch (err) { sAkun(err.message, true); }
   finally { b.disabled = false; }
 });
-$('btnKeluarAkun').addEventListener('click', async () => {
+
+async function simpanDariForm(f, tombol, pesanSukses) {
+  tombol.disabled = true; sAkun('Menyimpan…');
+  try {
+    const v = ambilNilai(f);
+    const d = await panggilAPI('customerSaveProfile', { customerToken, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp, alamat:v.alamat });
+    customerUser = d.user; segarkanRingkas();
+    await muatAkunPelanggan();
+    sAkun(pesanSukses);
+  } catch (err) { sAkun(err.message, true); }
+  finally { tombol.disabled = false; }
+}
+$('formLengkapi').addEventListener('submit', e => { e.preventDefault(); simpanDariForm(fLengkapi, $('btnLengkapi'), 'Pendaftaran selesai. Sekarang Anda bisa membeli.'); });
+$('formProfil').addEventListener('submit', e => { e.preventDefault(); simpanDariForm(fProfil, $('btnSimpanProfil'), 'Profil berhasil disimpan.'); });
+
+document.querySelectorAll('[data-keluar]').forEach(b => b.addEventListener('click', async () => {
   try { await panggilAPI('customerLogout', { customerToken }); } catch (e) {}
-  simpanSesiPelanggan(''); customerUser = null; $('akunStatus').textContent = 'Anda sudah keluar.'; await muatAkunPelanggan();
-});
+  simpanSesiPelanggan(''); customerUser = null;
+  await muatAkunPelanggan();
+  sAkun('Anda sudah keluar.');
+}));
 
 function bersihkanCaptcha() {
   if (widgetId !== null && window.turnstile) { try { turnstile.remove(widgetId); } catch (e) {} }
@@ -839,12 +1023,11 @@ function buatBeli(p) {
 
   const wa = (teks, label) => mk('a', { className: 'btn-wa', href: waLink(teks), target: '_blank', rel: 'noopener', textContent: label, hidden: !WA_ADMIN });
   if (!bisa) { box.appendChild(wa('Halo admin VBR, saya mau tanya ' + p.nama + '.', 'Tanya admin via WhatsApp')); return; }
-  if (!customerToken) {
-    box.appendChild(mk('p', { textContent:'Login dengan Google diperlukan sebelum checkout. Setelah login, lengkapi nama, nomor HP, dan alamat pengiriman.' }));
-    const google = mk('div', { className:'akun-google' }); google.id = 'googleBtnCheckout'; box.appendChild(google);
-    const status = mk('p', { className:'d-pesan', role:'status', textContent:'' }); box.appendChild(status);
-    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.startsWith('ISI_CLIENT_ID')) status.textContent = 'Login Google belum dikonfigurasi oleh admin.';
-    else siapkanTombolGoogle('googleBtnCheckout');
+  if (!customerToken || !customerUser || !customerUser.terdaftar) {
+    const lengkap = customerToken && customerUser && !customerUser.terdaftar;
+    box.appendChild(mk('p', { className: 'd-pesan salah', textContent: lengkap
+      ? 'Data akun Anda belum lengkap. Tutup jendela ini, buka menu ☰ di kiri atas, lalu lengkapi pendaftaran.'
+      : 'Untuk membeli, silakan daftar atau masuk dulu lewat menu ☰ di kiri atas halaman utama.' }));
     return;
   }
 
@@ -933,7 +1116,21 @@ document.getElementById('cari').addEventListener('input', e => {
 /* ============================================================
    MULAI
    ============================================================ */
-if (customerToken) { $('akunRingkas').textContent = 'Memeriksa sesi…'; }
+segarkanRingkas();
+
+// Login otomatis (Google One Tap): pengunjung yang pernah login langsung masuk tanpa menekan tombol
+function loginOtomatis() {
+  if (customerToken || !GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.startsWith('ISI_CLIENT_ID')) return;
+  let n = 0;
+  const coba = () => {
+    if (!window.google || !google.accounts || !google.accounts.id) { if (++n < 30) setTimeout(coba, 300); return; }
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: tanganiLoginGoogle, auto_select: true, cancel_on_tap_outside: false });
+    google.accounts.id.prompt();
+  };
+  coba();
+}
+loginOtomatis();
+
 
 ambilData()
   .then(d => {
@@ -945,6 +1142,16 @@ ambilData()
   .catch(() => {
     jumlah.textContent = 'Data tidak bisa dimuat. Muat ulang halaman untuk mencoba lagi.';
   });
+
+// ---- Menu strip 3 ----
+(function () {
+  const btn = $('btnMenu'), panel = $('menuPanel');
+  const tutup = () => { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+  btn.addEventListener('click', e => { e.stopPropagation(); panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); });
+  $('btnAkun').addEventListener('click', tutup);
+  document.addEventListener('click', e => { if (!panel.hidden && !panel.contains(e.target)) tutup(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') tutup(); });
+})();
 </script>
 </body>
 </html>
