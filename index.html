@@ -1063,9 +1063,12 @@ function buatBeli(p) {
   const qty = field('Jumlah', mk('input', { type: 'number', min: 1, max: (Number(p.stok) > 0 ? Math.min(99, Number(p.stok)) : 99), value: 1, required: true }));
   const nm = field('Nama penerima', mk('input', { type: 'text', maxLength: 60, required: true, autocomplete: 'name', value: customerUser && customerUser.nama ? customerUser.nama : '' }));
   const hp = field('No. HP / WhatsApp', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'tel', placeholder: '0812...', value: customerUser && customerUser.hp ? customerUser.hp : '' }));
-  const hp2 = field('Ketik ulang No. HP', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'off', placeholder: 'Ulangi nomor HP' }));
-  const al = field('Alamat lengkap', mk('textarea', { maxLength: 250, required: true, autocomplete: 'street-address' }));
+  const hpAkun = customerUser && customerUser.hp ? customerUser.hp : '';
+  const hp2 = field('Ketik ulang No. HP', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'off', placeholder: 'Ulangi nomor HP', value: hpAkun }));
+  const al = field('Alamat lengkap', mk('textarea', { maxLength: 250, required: true, autocomplete: 'street-address', placeholder: 'Alamat tersimpan otomatis untuk pembelian berikutnya' }));
   if (customerUser && customerUser.alamat) al.value = customerUser.alamat;
+  // Nomor dari akun sudah terverifikasi saat daftar; kalau nomor diubah, wajib diketik ulang
+  hp.addEventListener('input', () => { if (normHp(hp.value) !== normHp(hpAkun)) { if (normHp(hp2.value) === normHp(hpAkun)) hp2.value = ''; } });
   const total = mk('p', { className: 'd-total' });
   const cap = mk('div', { className: 'd-captcha' });
   const kirim = mk('button', { type: 'submit', className: 'btn-pesan', textContent: 'Pesan sekarang' });
@@ -1108,6 +1111,7 @@ function buatBeli(p) {
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.pesan || 'Pesanan gagal dikirim');
+      if (customerUser) customerUser.alamat = al.value.trim();
       form.hidden = true;
       tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + '. Kirim ID ini ke admin untuk pembayaran.', false);
       if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total), 'Kirim konfirmasi ke admin'));
