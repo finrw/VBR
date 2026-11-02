@@ -246,11 +246,16 @@
   .akun-isi textarea { min-height:80px; }
   .akun-status { margin-top:10px; font-size:.92rem; }
   .akun-order { border-top:1px solid var(--line); padding:12px 0; font-size:.9rem; }
+  .akun-order input[type=file] { width:100%; margin-top:8px; }
   .akun-order small { display:block; color:var(--muted); }
   .akun-google { margin-top:12px; min-height:42px; }
   .akun-isi select { display:block; width:100%; margin-top:4px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; }
   .akun-isi input[readonly] { background:var(--bg); color:var(--muted); }
   .akun-info { margin:8px 0 0; font-size:.82rem; color:var(--muted); line-height:1.45; }
+  .garansi { display:flex; gap:8px; align-items:flex-start; margin-top:10px; font-size:.86rem; line-height:1.4; }
+  .garansi input { margin-top:3px; flex:none; }
+  .akun-order a.akun-btn { display:block; text-align:center; text-decoration:none; box-sizing:border-box; padding:10px; }
+  .akun-order small { display:block; }
   .akun-atau { margin:14px 0 4px; text-align:center; color:var(--muted); font-size:.88rem; }
   .akun-pilih { display:grid; gap:10px; margin-top:10px; }
   .akun-isi .akun-btn { width:100%; margin-top:10px; }
@@ -912,13 +917,31 @@ function isiField(wadah, o) {
   baris('Tanggal lahir', mk('input', { type:'date', required:true, min:'1920-01-01', max:hariIni(), autocomplete:'bday' }), 'tgl');
   baris('No. HP WhatsApp', mk('input', { type:'tel', maxLength:16, required:true, autocomplete:'tel', placeholder:'0812...' }), 'hp');
   baris('Email', mk('input', { type:'email', maxLength:120, required:true, autocomplete:'email', readOnly:!o.emailBisaDiubah }), 'email');
-  if (o.alamat) baris('Alamat pengiriman (boleh dikosongkan)', mk('textarea', { maxLength:250, rows:3, autocomplete:'street-address' }), 'alamat');
+  baris('Alamat lengkap (wajib)', mk('textarea', { maxLength:250, minLength:10, rows:3, required:true, autocomplete:'street-address', placeholder:'Jalan, nomor, RT/RW, kelurahan, kota' }), 'alamat');
+  const lok = mk('input', { type:'hidden' }); f.lokasi = lok;
+  const info = mk('small', { className:'akun-info' });
+  const tampil = () => {
+    info.textContent = '';
+    if (!lok.value) { info.textContent = 'Titik peta belum ditandai (disarankan). Tekan tombol saat Anda berada di alamat pengiriman.'; return; }
+    const a = mk('a', { href:'https://www.google.com/maps?q=' + lok.value, target:'_blank', rel:'noopener', textContent:'Lihat titik di peta' });
+    info.append('Titik peta tersimpan. ', a);
+  };
+  const tombol = mk('button', { type:'button', className:'akun-btn', textContent:'Tandai lokasi saya (GPS)' });
+  tombol.addEventListener('click', () => {
+    if (!navigator.geolocation) { info.textContent = 'Browser ini tidak mendukung lokasi.'; return; }
+    info.textContent = 'Mengambil lokasi…';
+    navigator.geolocation.getCurrentPosition(
+      pos => { lok.value = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6); tampil(); },
+      () => { info.textContent = 'Lokasi tidak bisa diambil. Izinkan akses lokasi di browser, lalu coba lagi.'; },
+      { enableHighAccuracy:true, timeout:15000 });
+  });
+  wadah.append(lok, tombol, info);
   f.nama.value = n.nama || ''; f.bio.value = n.bio || ''; f.jk.value = n.jk || '';
   f.tgl.value = n.tgl || ''; f.hp.value = n.hp || ''; f.email.value = n.email || '';
-  if (f.alamat) f.alamat.value = n.alamat || '';
+  f.alamat.value = n.alamat || ''; lok.value = n.lokasi || ''; tampil();
   return f;
 }
-const ambilNilai = f => ({ nama:f.nama.value, bio:f.bio.value, jk:f.jk.value, tgl:f.tgl.value, hp:f.hp.value, email:f.email.value, alamat: f.alamat ? f.alamat.value : undefined });
+const ambilNilai = f => ({ nama:f.nama.value, bio:f.bio.value, jk:f.jk.value, tgl:f.tgl.value, hp:f.hp.value, email:f.email.value, alamat:f.alamat.value, lokasi:f.lokasi.value });
 
 async function muatAkunPelanggan() {
   if (!customerToken) {
@@ -944,15 +967,90 @@ async function muatAkunPelanggan() {
     tampilAkun('akunMasuk'); siapkanTombolGoogle('googleBtnAkun');
   }
 }
+function bacaDurasi(file) {
+  return new Promise(res => {
+    const v = document.createElement('video'), u = URL.createObjectURL(file);
+    const selesai = d => { URL.revokeObjectURL(u); res(d); };
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => selesai(isFinite(v.duration) ? v.duration : 0);
+    v.onerror = () => selesai(0);
+    setTimeout(() => selesai(0), 8000);
+    v.src = u;
+  });
+}
+function kirimPotongan(url, blob, awal, total) {
+  return new Promise((ok, gagal) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', url);
+    x.setRequestHeader('Content-Range', 'bytes ' + awal + '-' + (awal + blob.size - 1) + '/' + total);
+    x.onload = () => ok({ status: x.status, teks: x.responseText });
+    x.onerror = () => gagal(new Error('Unggah gagal. Periksa koneksi lalu coba lagi, atau hubungi admin.'));
+    x.send(blob);
+  });
+}
+async function unggahVideo(o, file, info) {
+  if (!/^video\//.test(file.type)) throw new Error('File harus berupa video.');
+  if (file.size > 300 * 1024 * 1024) throw new Error('Ukuran video maksimal 300 MB.');
+  const dur = await bacaDurasi(file);
+  if (dur && (dur < 57 || dur > 123)) throw new Error('Durasi video harus 1–2 menit (video Anda ' + Math.round(dur) + ' detik).');
+  const m = await panggilAPI('garansiMulai', { customerToken, id:o.id, size:file.size, mime:file.type, durasi:Math.round(dur) });
+  const POTONG = 8 * 1024 * 1024;
+  let mulai = 0, hasil = null;
+  while (mulai < file.size) {
+    const akhir = Math.min(mulai + POTONG, file.size);
+    const r = await kirimPotongan(m.uploadUrl, file.slice(mulai, akhir), mulai, file.size);
+    if (r.status === 308) mulai = akhir;
+    else if (r.status === 200 || r.status === 201) { hasil = JSON.parse(r.teks); mulai = file.size; }
+    else throw new Error('Unggah gagal (kode ' + r.status + '). Coba lagi atau hubungi admin.');
+    info.textContent = 'Mengunggah… ' + Math.round(mulai / file.size * 100) + '%';
+  }
+  if (!hasil || !hasil.id) throw new Error('Unggah belum selesai. Coba lagi.');
+  await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:hasil.id, durasi:Math.round(dur) });
+}
+
 function gambarPesananPelanggan(daftar) {
   const box = $('akunPesanan'); box.textContent = '';
   if (!daftar.length) { box.textContent = 'Belum ada pesanan.'; return; }
+  const ubah = async (o, status, tanya) => {
+    if (!confirm(tanya)) return;
+    sAkun('Memproses…');
+    try {
+      await panggilAPI('customerStatus', { customerToken, id:o.id, status });
+      await muatAkunPelanggan(); segarkanStok();
+      sAkun('Pesanan diperbarui.');
+    } catch (e) { sAkun(e.message, true); }
+  };
   daftar.forEach(o => {
-    const row = mk('div', {className:'akun-order'});
-    const b = mk('b', {textContent:String(o.produk) + ' × ' + String(o.jumlah)});
-    const small = mk('small', {textContent:String(o.id) + ' · ' + String(o.waktu || '') + ' · ' + String(o.status)});
-    const total = mk('small', {textContent:rp(o.total)});
-    row.append(b, small, total); box.appendChild(row);
+    const row = mk('div', { className:'akun-order' });
+    row.append(
+      mk('b', { textContent:String(o.produk) + ' × ' + String(o.jumlah) }),
+      mk('small', { textContent:String(o.id) + ' · ' + String(o.waktu || '') + ' · ' + String(o.status) }),
+      mk('small', { textContent:rp(o.total) }));
+    const aksi = (teks, fn) => { const b = mk('button', { type:'button', className:'akun-btn', textContent:teks }); b.addEventListener('click', fn); row.appendChild(b); };
+    if (o.status === 'Baru') {
+      if (o.batas) row.appendChild(mk('small', { textContent:'Bayar sebelum ' + o.batas + '. Lewat batas itu pesanan dibatalkan otomatis.' }));
+      aksi('Batalkan pesanan', () => ubah(o, 'Dibatalkan', 'Batalkan pesanan ' + o.id + '?'));
+    } else if (o.status === 'Dikirim') {
+      row.appendChild(mk('small', { textContent:'Garansi berlaku dengan video unboxing: rekam tanpa terputus sejak paket belum dibuka.' }));
+      aksi('Barang sudah diterima (Selesai)', () => ubah(o, 'Selesai', 'Konfirmasi barang ' + o.id + ' sudah diterima?'));
+    } else if (o.status === 'Selesai') {
+      if (o.video) {
+        row.appendChild(mk('small', { textContent:'Video unboxing sudah diunggah. Lanjutkan klaim garansi ke admin lewat WhatsApp.' }));
+        if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin via WhatsApp' }));
+      } else {
+        row.appendChild(mk('small', { textContent:'Mau klaim garansi? Unggah video unboxing (durasi 1–2 menit, maks 300 MB). Tombol chat WhatsApp muncul setelah video terunggah.' }));
+        const inp = mk('input', { type:'file', accept:'video/*' }), st = mk('small', {});
+        inp.addEventListener('change', async () => {
+          const file = inp.files[0];
+          if (!file) return;
+          inp.disabled = true; st.textContent = 'Memeriksa video…';
+          try { await unggahVideo(o, file, st); await muatAkunPelanggan(); sAkun('Video terunggah. Tombol chat WhatsApp sekarang tersedia.'); }
+          catch (e) { st.textContent = e.message; inp.disabled = false; inp.value = ''; }
+        });
+        row.append(inp, st);
+      }
+    }
+    box.appendChild(row);
   });
 }
 
@@ -995,7 +1093,7 @@ async function kirimKode(tombol, data) {
 $('formDaftar').addEventListener('submit', e => {
   e.preventDefault();
   const v = ambilNilai(fDaftar);
-  kirimKode($('btnKirimKodeDaftar'), { mode:'daftar', email:v.email, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp });
+  kirimKode($('btnKirimKodeDaftar'), { mode:'daftar', email:v.email, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp, alamat:v.alamat, lokasi:v.lokasi });
 });
 $('formMasukEmail').addEventListener('submit', e => {
   e.preventDefault();
@@ -1017,7 +1115,7 @@ async function simpanDariForm(f, tombol, pesanSukses) {
   tombol.disabled = true; sAkun('Menyimpan…');
   try {
     const v = ambilNilai(f);
-    const d = await panggilAPI('customerSaveProfile', { customerToken, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp, alamat:v.alamat });
+    const d = await panggilAPI('customerSaveProfile', { customerToken, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp, alamat:v.alamat, lokasi:v.lokasi });
     customerUser = d.user; segarkanRingkas();
     await muatAkunPelanggan();
     sAkun(pesanSukses);
@@ -1074,7 +1172,10 @@ function buatBeli(p) {
   const kirim = mk('button', { type: 'submit', className: 'btn-pesan', textContent: 'Pesan sekarang' });
   const ket = mk('p', { className: 'd-pesan', role: 'status' });
   const waBanyak = wa('', 'Pesan jumlah banyak via WhatsApp');
-  form.append(total, cap, kirim);
+  const gar = mk('input', { type: 'checkbox', required: true });
+  const garL = mk('label', { className: 'garansi' });
+  garL.append(gar, document.createTextNode('Saya mengerti: garansi hanya berlaku jika ada video unboxing yang direkam tanpa terputus sejak paket belum dibuka.'));
+  form.append(total, garL, cap, kirim);
   box.append(form, waBanyak, ket);
 
   const tulis = (t, salah) => { ket.className = 'd-pesan ' + (salah ? 'salah' : 'benar'); ket.textContent = t; };
@@ -1082,7 +1183,7 @@ function buatBeli(p) {
     const n = parseInt(qty.value, 10) || 1, banyak = n > BATAS_QTY;
     total.textContent = 'Total: ' + rp(harga * Math.max(n, 1));
     [nm, hp, hp2, al].forEach(el => { el.closest('label').hidden = banyak; });
-    cap.hidden = kirim.hidden = banyak;
+    cap.hidden = kirim.hidden = garL.hidden = banyak;
     waBanyak.hidden = !banyak || !WA_ADMIN;
     waBanyak.href = waLink('Halo admin VBR, saya mau pesan ' + n + ' unit ' + p.nama + '.');
   };
@@ -1107,13 +1208,12 @@ function buatBeli(p) {
     try {
       const res = await fetch(API_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ aksi: 'pesan', customerToken, produk: p.nama, jumlah: Number(qty.value), pembeli: nm.value, hp: hp.value, alamat: al.value, captcha: tk })
+        body: JSON.stringify({ aksi: 'pesan', customerToken, produk: p.nama, jumlah: Number(qty.value), pembeli: nm.value, hp: hp.value, alamat: al.value, garansi: gar.checked, captcha: tk })
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.pesan || 'Pesanan gagal dikirim');
-      if (customerUser) customerUser.alamat = al.value.trim();
       form.hidden = true;
-      tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + '. Kirim ID ini ke admin untuk pembayaran.', false);
+      tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + '. Bayar dalam 1 jam, jika tidak pesanan dibatalkan otomatis. Kirim ID ini ke admin untuk pembayaran.', false);
       if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total), 'Kirim konfirmasi ke admin'));
     } catch (err) {
       tulis(err.message, true);
