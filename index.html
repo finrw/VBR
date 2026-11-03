@@ -992,7 +992,7 @@ async function unggahVideo(o, file, info) {
   if (!/^video\//.test(file.type)) throw new Error('File harus berupa video.');
   if (file.size > 300 * 1024 * 1024) throw new Error('Ukuran video maksimal 300 MB.');
   const dur = await bacaDurasi(file);
-  if (dur && (dur < 57 || dur > 123)) throw new Error('Durasi video harus 1–2 menit (video Anda ' + Math.round(dur) + ' detik).');
+  if (dur > 90.5) throw new Error('Durasi video maksimal 1 menit 30 detik (video Anda ' + Math.round(dur) + ' detik).');
   const m = await panggilAPI('garansiMulai', { customerToken, id:o.id, size:file.size, mime:file.type, durasi:Math.round(dur) });
   const POTONG = 8 * 1024 * 1024;
   let mulai = 0, hasil = null;
@@ -1038,7 +1038,7 @@ function gambarPesananPelanggan(daftar) {
         row.appendChild(mk('small', { textContent:'Video unboxing sudah diunggah. Lanjutkan klaim garansi ke admin lewat WhatsApp.' }));
         if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin via WhatsApp' }));
       } else {
-        row.appendChild(mk('small', { textContent:'Mau klaim garansi? Unggah video unboxing (durasi 1–2 menit, maks 300 MB). Tombol chat WhatsApp muncul setelah video terunggah.' }));
+        row.appendChild(mk('small', { textContent:'Mau klaim garansi? Unggah video unboxing (durasi maksimal 1 menit 30 detik, maks 300 MB). Tombol chat WhatsApp muncul setelah video terunggah.' }));
         const inp = mk('input', { type:'file', accept:'video/*' }), st = mk('small', {});
         inp.addEventListener('change', async () => {
           const file = inp.files[0];
