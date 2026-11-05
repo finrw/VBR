@@ -296,7 +296,7 @@ function gambarDashboard(d) {
     const a = document.createElement('div');
     a.textContent = o.id + ' · ' + o.produk + ' x' + o.jumlah + ' · ' + rp(o.total) + (o.ongkir === null ? ' · ongkir belum diisi' : ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir)));
     const i = document.createElement('small');
-    i.textContent = o.waktu + ' · ' + o.pembeli + ' · ' + o.hp + ' · ' + o.alamat;
+    i.textContent = (o.resi ? o.kurir + ' ' + o.resi + ' · ' : '') + o.waktu + ' · ' + o.pembeli + ' · ' + o.hp + ' · ' + o.alamat;
     if (o.lokasi) { i.append(' · '); const m = document.createElement('a'); m.href = 'https://www.google.com/maps?q=' + o.lokasi; m.target = '_blank'; m.rel = 'noopener'; m.textContent = 'Lihat peta'; i.appendChild(m); }
     if (o.video) { i.append(' · '); const v = document.createElement('a'); v.href = o.video; v.target = '_blank'; v.rel = 'noopener'; v.textContent = 'Video unboxing'; i.appendChild(v); }
     const sel = document.createElement('select');
@@ -320,6 +320,23 @@ function gambarDashboard(d) {
         catch (err) { alert(err.message); }
       };
       r.append(og, ob);
+    }
+    if (o.status === 'Dikemas' || o.status === 'Dikirim') {
+      const kw = document.createElement('div');
+      kw.style.cssText = 'margin-top:8px';
+      const ks = document.createElement('select');
+      ['JNE', 'J&T', 'SiCepat', 'AnterAja', 'Pos Indonesia', 'Ninja Xpress', 'ID Express', 'Lion Parcel', 'Lainnya'].forEach(k => { const op = document.createElement('option'); op.value = k; op.textContent = k; if (k === o.kurir) op.selected = true; ks.appendChild(op); });
+      const ri = document.createElement('input');
+      ri.type = 'text'; ri.maxLength = 40; ri.placeholder = 'Nomor resi (boleh kosong)'; ri.value = o.resi || '';
+      ri.style.cssText = 'width:180px;margin-left:8px;padding:6px 8px;border:1.5px solid #ccc;border-radius:8px;font:inherit';
+      const rb = document.createElement('button');
+      rb.type = 'button'; rb.textContent = 'Simpan resi';
+      rb.style.cssText = 'margin-left:6px;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font:inherit';
+      rb.onclick = async () => {
+        try { await panggil('setResi', { id: o.id, kurir: ks.value, resi: ri.value }); muatDashboard(); }
+        catch (err) { alert(err.message); }
+      };
+      kw.append(ks, ri, rb); r.appendChild(kw);
     }
     pb.appendChild(r);
   });

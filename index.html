@@ -254,6 +254,7 @@
   .akun-info { margin:8px 0 0; font-size:.82rem; color:var(--muted); line-height:1.45; }
   .d-total small { display:block; font-weight:400; color:var(--muted); font-size:.85rem; margin-top:2px; }
   .d-beli .garansi input[type=checkbox] { width:20px; height:20px; margin:2px 0 0; padding:0; flex:none; }
+  .d-beli label.garansi { display:flex; align-items:flex-start; gap:8px; }
   .garansi { display:flex; gap:8px; align-items:flex-start; margin-top:10px; font-size:.86rem; line-height:1.4; }
   .garansi input { margin-top:3px; flex:none; }
   .akun-order a.akun-btn { display:block; text-align:center; text-decoration:none; box-sizing:border-box; padding:10px; }
@@ -1090,6 +1091,16 @@ function gambarPesananPelanggan(daftar) {
       mk('b', { textContent:String(o.produk) + ' × ' + String(o.jumlah) }),
       mk('small', { textContent:String(o.id) + ' · ' + String(o.waktu || '') + ' · ' + String(o.status) }),
       mk('small', { textContent:ringkasBayar(o) }));
+    if (o.resi && (o.status === 'Dikemas' || o.status === 'Dikirim' || o.status === 'Selesai')) {
+      row.appendChild(mk('small', { textContent:'Kurir: ' + (o.kurir || '-') + ' · Resi: ' + o.resi }));
+      const kotak = mk('div', { className:'peta-aksi' });
+      const salin = mk('button', { type:'button', className:'akun-btn', textContent:'Salin resi' });
+      salin.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(o.resi); salin.textContent = 'Tersalin'; } catch (e) { salin.textContent = o.resi; }
+      });
+      kotak.append(salin, mk('a', { className:'akun-btn', href:'https://cekresi.com/?noresi=' + encodeURIComponent(o.resi), target:'_blank', rel:'noopener', textContent:'Lacak paket' }));
+      row.appendChild(kotak);
+    }
     const aksi = (teks, fn) => { const b = mk('button', { type:'button', className:'akun-btn', textContent:teks }); b.addEventListener('click', fn); row.appendChild(b); };
     if (o.status === 'Baru') {
       if (o.batas) row.appendChild(mk('small', { textContent:'Bayar sebelum ' + o.batas + '. Lewat batas itu pesanan dibatalkan otomatis.' }));
