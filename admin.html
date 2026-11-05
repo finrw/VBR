@@ -294,7 +294,7 @@ function gambarDashboard(d) {
   d.pesanan.forEach(o => {
     const r = document.createElement('div'); r.className = 'pes';
     const a = document.createElement('div');
-    a.textContent = o.id + ' · ' + o.produk + ' x' + o.jumlah + ' · ' + rp(o.total);
+    a.textContent = o.id + ' · ' + o.produk + ' x' + o.jumlah + ' · ' + rp(o.total) + (o.ongkir === null ? ' · ongkir belum diisi' : ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir)));
     const i = document.createElement('small');
     i.textContent = o.waktu + ' · ' + o.pembeli + ' · ' + o.hp + ' · ' + o.alamat;
     if (o.lokasi) { i.append(' · '); const m = document.createElement('a'); m.href = 'https://www.google.com/maps?q=' + o.lokasi; m.target = '_blank'; m.rel = 'noopener'; m.textContent = 'Lihat peta'; i.appendChild(m); }
@@ -307,7 +307,21 @@ function gambarDashboard(d) {
       try { await panggil('setStatus', { id: o.id, status: sel.value }); muatDashboard(); }
       catch (err) { alert(err.message); muatDashboard(); }
     };
-    r.append(a, i, sel); pb.appendChild(r);
+    r.append(a, i, sel);
+    if (o.status !== 'Dibatalkan' && o.status !== 'Selesai') {
+      const og = document.createElement('input');
+      og.type = 'number'; og.min = '0'; og.step = '1000'; og.placeholder = 'Ongkir (Rp)'; og.value = o.ongkir === null ? '' : o.ongkir;
+      og.style.cssText = 'width:130px;margin-left:8px;padding:6px 8px;border:1.5px solid #ccc;border-radius:8px;font:inherit';
+      const ob = document.createElement('button');
+      ob.type = 'button'; ob.textContent = 'Simpan ongkir';
+      ob.style.cssText = 'margin-left:6px;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font:inherit';
+      ob.onclick = async () => {
+        try { await panggil('setOngkir', { id: o.id, ongkir: og.value }); muatDashboard(); }
+        catch (err) { alert(err.message); }
+      };
+      r.append(og, ob);
+    }
+    pb.appendChild(r);
   });
   if (!d.pesanan.length) pb.textContent = 'Belum ada pesanan.';
 }

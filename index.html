@@ -252,10 +252,17 @@
   .akun-isi select { display:block; width:100%; margin-top:4px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; }
   .akun-isi input[readonly] { background:var(--bg); color:var(--muted); }
   .akun-info { margin:8px 0 0; font-size:.82rem; color:var(--muted); line-height:1.45; }
+  .d-total small { display:block; font-weight:400; color:var(--muted); font-size:.85rem; margin-top:2px; }
+  .d-beli .garansi input[type=checkbox] { width:20px; height:20px; margin:2px 0 0; padding:0; flex:none; }
   .garansi { display:flex; gap:8px; align-items:flex-start; margin-top:10px; font-size:.86rem; line-height:1.4; }
   .garansi input { margin-top:3px; flex:none; }
   .akun-order a.akun-btn { display:block; text-align:center; text-decoration:none; box-sizing:border-box; padding:10px; }
   .akun-order small { display:block; }
+  .peta-pilih { height:280px; margin-top:8px; border:1.5px solid var(--line); border-radius:10px; overflow:hidden; position:relative; z-index:0; }
+  .pin-vbr { width:28px; height:28px; background:#E53935; border:3px solid #fff; border-radius:50% 50% 50% 0; transform:rotate(-45deg); box-shadow:0 2px 6px rgba(0,0,0,.4); }
+  .peta-aksi { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+  .akun-isi .peta-aksi .akun-btn { margin-top:0; }
+  .peta-aksi .lebar { grid-column:1 / -1; }
   .akun-atau { margin:14px 0 4px; text-align:center; color:var(--muted); font-size:.88rem; }
   .akun-pilih { display:grid; gap:10px; margin-top:10px; }
   .akun-isi .akun-btn { width:100%; margin-top:10px; }
@@ -901,6 +908,21 @@ function tampilAkun(id) {
   if (id === 'akunMasukEmail') pasangCaptchaAkun($('capMasuk'));
 }
 
+function muatLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (window._leafletMuat) return window._leafletMuat;
+  window._leafletMuat = new Promise((ok, gagal) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    js.onload = ok;
+    js.onerror = () => { window._leafletMuat = null; gagal(new Error('Peta gagal dimuat')); };
+    document.head.appendChild(js);
+  });
+  return window._leafletMuat;
+}
 function hariIni() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -920,25 +942,62 @@ function isiField(wadah, o) {
   baris('Alamat lengkap (wajib)', mk('textarea', { maxLength:250, minLength:10, rows:3, required:true, autocomplete:'street-address', placeholder:'Jalan, nomor, RT/RW, kelurahan, kota' }), 'alamat');
   const lok = mk('input', { type:'hidden' }); f.lokasi = lok;
   const info = mk('small', { className:'akun-info' });
-  const tampil = () => {
+  const peta = mk('div', { className:'peta-pilih' });
+  let petaL = null, penanda = null;
+  const catat = () => {
     info.textContent = '';
-    if (!lok.value) { info.textContent = 'Titik peta belum ditandai (disarankan). Tekan tombol saat Anda berada di alamat pengiriman.'; return; }
-    const a = mk('a', { href:'https://www.google.com/maps?q=' + lok.value, target:'_blank', rel:'noopener', textContent:'Lihat titik di peta' });
-    info.append('Titik peta tersimpan. ', a);
+    if (!lok.value) { info.textContent = 'Ketuk peta atau geser pin ke titik pengiriman (disarankan).'; return; }
+    info.append('Titik tersimpan: ' + lok.value + ' · ', mk('a', { href:'https://www.google.com/maps?q=' + lok.value, target:'_blank', rel:'noopener', textContent:'Lihat di Google Maps' }));
   };
-  const tombol = mk('button', { type:'button', className:'akun-btn', textContent:'Tandai lokasi saya (GPS)' });
-  tombol.addEventListener('click', () => {
-    if (!navigator.geolocation) { info.textContent = 'Browser ini tidak mendukung lokasi.'; return; }
+  const taruh = (lat, lng, zoom) => {
+    if (!petaL) return;
+    if (penanda) penanda.setLatLng([lat, lng]);
+    else {
+      penanda = L.marker([lat, lng], { draggable:true, icon:L.divIcon({ className:'', html:'<div class="pin-vbr"></div>', iconSize:[28, 28], iconAnchor:[14, 28] }) }).addTo(petaL);
+      penanda.on('dragend', () => { const p = penanda.getLatLng(); lok.value = p.lat.toFixed(6) + ',' + p.lng.toFixed(6); catat(); });
+    }
+    lok.value = lat.toFixed(6) + ',' + lng.toFixed(6);
+    if (zoom) petaL.setView([lat, lng], zoom);
+    catat();
+  };
+  muatLeaflet().then(() => {
+    const ada = !!lok.value, p = ada ? lok.value.split(',').map(Number) : [-2.5, 118];
+    petaL = L.map(peta).setView(p, ada ? 17 : 5);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(petaL);
+    if (ada) taruh(p[0], p[1]);
+    petaL.on('click', e => taruh(e.latlng.lat, e.latlng.lng));
+    new ResizeObserver(() => petaL.invalidateSize()).observe(peta);
+  }).catch(() => { peta.textContent = 'Peta tidak bisa dimuat. Periksa koneksi lalu buka ulang menu ini.'; });
+  const tombolGps = mk('button', { type:'button', className:'akun-btn', textContent:'Lokasi saya (GPS)' });
+  tombolGps.addEventListener('click', () => {
+    if (!navigator.geolocation) { info.textContent = 'Browser ini tidak mendukung GPS.'; return; }
     info.textContent = 'Mengambil lokasi…';
     navigator.geolocation.getCurrentPosition(
-      pos => { lok.value = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6); tampil(); },
-      () => { info.textContent = 'Lokasi tidak bisa diambil. Izinkan akses lokasi di browser, lalu coba lagi.'; },
+      pos => taruh(pos.coords.latitude, pos.coords.longitude, 18),
+      () => { info.textContent = 'GPS tidak bisa diambil. Izinkan akses lokasi di browser, atau tandai manual di peta.'; },
       { enableHighAccuracy:true, timeout:15000 });
   });
-  wadah.append(lok, tombol, info);
+  const tombolCari = mk('button', { type:'button', className:'akun-btn', textContent:'Cari dari alamat' });
+  tombolCari.addEventListener('click', async () => {
+    const q = f.alamat.value.trim();
+    if (q.length < 5) { info.textContent = 'Isi alamat dulu, lalu tekan Cari.'; return; }
+    info.textContent = 'Mencari alamat…';
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=id&q=' + encodeURIComponent(q));
+      const d = await r.json();
+      if (!d.length) { info.textContent = 'Alamat tidak ditemukan di peta. Ketuk peta untuk menaruh pin sendiri.'; return; }
+      taruh(Number(d[0].lat), Number(d[0].lon), 17);
+      info.append(' Geser pin kalau kurang pas.');
+    } catch (e) { info.textContent = 'Pencarian gagal. Ketuk peta untuk menaruh pin sendiri.'; }
+  });
+  const tombolHapus = mk('button', { type:'button', className:'akun-btn lebar', textContent:'Hapus titik' });
+  tombolHapus.addEventListener('click', () => { lok.value = ''; if (penanda && petaL) { petaL.removeLayer(penanda); penanda = null; } catat(); });
+  const aksi = mk('div', { className:'peta-aksi' });
+  aksi.append(tombolGps, tombolCari, tombolHapus);
+  wadah.append(lok, peta, aksi, info);
   f.nama.value = n.nama || ''; f.bio.value = n.bio || ''; f.jk.value = n.jk || '';
   f.tgl.value = n.tgl || ''; f.hp.value = n.hp || ''; f.email.value = n.email || '';
-  f.alamat.value = n.alamat || ''; lok.value = n.lokasi || ''; tampil();
+  f.alamat.value = n.alamat || ''; lok.value = n.lokasi || ''; catat();
   return f;
 }
 const ambilNilai = f => ({ nama:f.nama.value, bio:f.bio.value, jk:f.jk.value, tgl:f.tgl.value, hp:f.hp.value, email:f.email.value, alamat:f.alamat.value, lokasi:f.lokasi.value });
@@ -1008,6 +1067,11 @@ async function unggahVideo(o, file, info) {
   await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:hasil.id, durasi:Math.round(dur) });
 }
 
+function ringkasBayar(o) {
+  if (o.status === 'Dibatalkan') return rp(o.total);
+  if (o.ongkir === null || o.ongkir === undefined) return rp(o.total) + ' · Ongkir: menunggu diisi admin';
+  return rp(o.total) + ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir));
+}
 function gambarPesananPelanggan(daftar) {
   const box = $('akunPesanan'); box.textContent = '';
   if (!daftar.length) { box.textContent = 'Belum ada pesanan.'; return; }
@@ -1025,7 +1089,7 @@ function gambarPesananPelanggan(daftar) {
     row.append(
       mk('b', { textContent:String(o.produk) + ' × ' + String(o.jumlah) }),
       mk('small', { textContent:String(o.id) + ' · ' + String(o.waktu || '') + ' · ' + String(o.status) }),
-      mk('small', { textContent:rp(o.total) }));
+      mk('small', { textContent:ringkasBayar(o) }));
     const aksi = (teks, fn) => { const b = mk('button', { type:'button', className:'akun-btn', textContent:teks }); b.addEventListener('click', fn); row.appendChild(b); };
     if (o.status === 'Baru') {
       if (o.batas) row.appendChild(mk('small', { textContent:'Bayar sebelum ' + o.batas + '. Lewat batas itu pesanan dibatalkan otomatis.' }));
@@ -1182,6 +1246,7 @@ function buatBeli(p) {
   const segarkan = () => {
     const n = parseInt(qty.value, 10) || 1, banyak = n > BATAS_QTY;
     total.textContent = 'Total: ' + rp(harga * Math.max(n, 1));
+    total.append(mk('small', { textContent: 'Belum termasuk ongkir. Ongkir diisi admin setelah pesanan masuk.' }));
     [nm, hp, hp2, al].forEach(el => { el.closest('label').hidden = banyak; });
     cap.hidden = kirim.hidden = garL.hidden = banyak;
     waBanyak.hidden = !banyak || !WA_ADMIN;
@@ -1214,7 +1279,7 @@ function buatBeli(p) {
       if (!j.ok) throw new Error(j.pesan || 'Pesanan gagal dikirim');
       form.hidden = true;
       tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + '. Bayar dalam 1 jam, jika tidak pesanan dibatalkan otomatis. Kirim ID ini ke admin untuk pembayaran.', false);
-      if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total), 'Kirim konfirmasi ke admin'));
+      if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total) + ' (belum termasuk ongkir)', 'Kirim konfirmasi ke admin'));
     } catch (err) {
       tulis(err.message, true);
       if (/admin/i.test(err.message) && WA_ADMIN && !box.querySelector('.tambah')) {
