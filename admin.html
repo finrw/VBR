@@ -254,7 +254,7 @@ async function hapus(nama) {
 
 /* ---------- Ringkasan, harga & stok, pesanan ---------- */
 const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
-const STATUS = [['Baru', 'Pesanan baru'], ['Dikemas', 'Dikemas'], ['Dikirim', 'Dikirim'], ['Selesai', 'Selesai'], ['Dibatalkan', 'Dibatalkan']];
+const STATUS = [['Baru', 'Pesanan baru'], ['Dikemas', 'Dikemas'], ['Dikirim', 'Dikirim'], ['Dibatalkan', 'Dibatalkan']];
 
 async function muatDashboard() {
   try { gambarDashboard(await panggil('dashboard')); tandaiSinkron(); }
@@ -302,12 +302,13 @@ function gambarDashboard(d) {
     if (o.rating) i.append(' · Rating ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating));
     const sel = document.createElement('select');
     const daftar = STATUS.slice();
-    if (!daftar.some(t => t[0] === o.status)) daftar.unshift([o.status, o.status]);
+    if (!daftar.some(t => t[0] === o.status)) daftar.unshift([o.status, o.status === 'Selesai' ? 'Selesai (konfirmasi pembeli)' : o.status]);
     daftar.forEach(([v, l]) => { const op = document.createElement('option'); op.value = v; op.textContent = l; if (v === o.status) op.selected = true; sel.appendChild(op); });
     sel.onchange = async () => {
       try { await panggil('setStatus', { id: o.id, status: sel.value }); muatDashboard(); }
       catch (err) { alert(err.message); muatDashboard(); }
     };
+    if (o.status === 'Selesai' || o.status === 'Dibatalkan') sel.disabled = true;
     r.append(a, i, sel);
     if (o.status !== 'Dibatalkan' && o.status !== 'Selesai') {
       const og = document.createElement('input');

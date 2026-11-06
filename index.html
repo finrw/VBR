@@ -1135,6 +1135,7 @@ function gambarPesananPelanggan(daftar) {
       aksi('Batalkan pesanan', () => ubah(o, 'Dibatalkan', 'Batalkan pesanan ' + o.id + '?'));
     } else if (o.status === 'Dikirim') {
       row.appendChild(mk('small', { textContent:'Garansi berlaku dengan video unboxing: rekam tanpa terputus sejak paket belum dibuka.' }));
+      if (o.otomatis) row.appendChild(mk('small', { textContent:'Jika tidak dikonfirmasi, pesanan otomatis Selesai pada ' + o.otomatis + '.' }));
       aksi('Barang sudah diterima (Selesai)', () => ubah(o, 'Selesai', 'Konfirmasi barang ' + o.id + ' sudah diterima?'));
     } else if (o.status === 'Selesai') {
       if (o.video) {
