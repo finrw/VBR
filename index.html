@@ -264,6 +264,10 @@
   .peta-aksi { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
   .akun-isi .peta-aksi .akun-btn { margin-top:0; }
   .peta-aksi .lebar { grid-column:1 / -1; }
+  .akun-order .bintang { display:flex; align-items:center; flex-wrap:wrap; gap:2px; margin-top:6px; }
+  .akun-order .bintang-btn { width:auto; border:none; background:transparent; color:#F5A623; font-size:1.9rem; line-height:1; padding:2px 6px; cursor:pointer; }
+  .rating-kartu { margin:3px 0 0; color:#B26A00; font-weight:600; font-size:.88rem; }
+  .dua-kolom { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .akun-atau { margin:14px 0 4px; text-align:center; color:var(--muted); font-size:.88rem; }
   .akun-pilih { display:grid; gap:10px; margin-top:10px; }
   .akun-isi .akun-btn { width:100%; margin-top:10px; }
@@ -401,7 +405,7 @@
    - API_URL: nanti diisi URL Apps Script. Kosong = pakai DATA_CONTOH
    ============================================================ */
 const FOTO = 'foto/';
-const WA_ADMIN = '6285890056992';            // nomor WhatsApp admin format 628xxxxxxxxxx (tanpa + dan spasi)
+let WA_ADMIN = '';   // diambil dari server setelah pelanggan terdaftar masuk (tidak ditulis di halaman)
 const TURNSTILE_SITEKEY = '0x4AAAAAAFnxjNX-qad3QCXF';   // site key Cloudflare Turnstile (publik)
 const GOOGLE_CLIENT_ID = '292803477286-3l8s1dndbb7ld0p772vnvujdcop9hpof.apps.googleusercontent.com'; // OAuth Web client ID; samakan dengan Script Properties GOOGLE_CLIENT_ID
 const BATAS_QTY = 2;            // harus sama dengan batas checkout di backend
@@ -541,6 +545,8 @@ function buatFoto(p, kelas) {
   return wadah;
 }
 
+const teksRating = p => (p.ulasan > 0 ? '★ ' + Number(p.rating).toFixed(1) + ' · ' + p.ulasan + ' ulasan' : '');
+
 function tampilkan(daftar) {
   grid.textContent = '';
   jumlah.textContent = daftar.length + ' produk';
@@ -566,6 +572,7 @@ function tampilkan(daftar) {
     const ringkas = document.createElement('p');
     ringkas.textContent = barisDetail(p.detail).join(' · ');
     info.append(h, ringkas);
+    if (p.ulasan > 0) info.appendChild(Object.assign(document.createElement('p'), { className: 'rating-kartu', textContent: teksRating(p) }));
     if (p.harga !== '' && p.harga !== undefined) {
       const hg = document.createElement('p');
       hg.className = 'harga';
@@ -791,7 +798,7 @@ async function segarkanStok() {
     const d = await ambilData();
     (d.produk || []).forEach(n => {
       const lama = semuaProduk.find(x => x.nama === n.nama);
-      if (lama) { lama.stok = n.stok; lama.status = n.status; lama.harga = n.harga; }
+      if (lama) { lama.stok = n.stok; lama.status = n.status; lama.harga = n.harga; lama.rating = n.rating; lama.ulasan = n.ulasan; }
     });
     const q = $('cari').value.trim().toLowerCase();
     tampilkan(semuaProduk.filter(x => x.nama.toLowerCase().includes(q)));
@@ -814,6 +821,9 @@ function bukaDetail(p) {
   buatBeli(p);
   segarkanStok().then(() => { if (produkAktif === p && dlg.open) perbaruiInfoStok(p); });
   document.getElementById('dNama').textContent = p.nama;
+  let dr = document.getElementById('dRating');
+  if (!dr) { dr = document.createElement('p'); dr.id = 'dRating'; dr.className = 'rating-kartu'; document.getElementById('dNama').after(dr); }
+  dr.textContent = teksRating(p); dr.hidden = !(p.ulasan > 0);
   const ul = document.getElementById('dList');
   ul.textContent = '';
   barisDetail(p.detail).forEach(t => {
@@ -853,6 +863,7 @@ function segarkanRingkas() {
 }
 function simpanSesiPelanggan(t) {
   customerToken = t || '';
+  if (!t) WA_ADMIN = '';
   try { customerToken ? sessionStorage.setItem('vbr_customer_token', customerToken) : sessionStorage.removeItem('vbr_customer_token'); } catch (e) {}
   segarkanRingkas();
 }
@@ -931,8 +942,8 @@ function hariIni() {
 function isiField(wadah, o) {
   wadah.textContent = '';
   const f = {}, n = o.nilai || {};
-  const baris = (label, el, kunci) => { const l = mk('label', { textContent: label }); l.appendChild(el); wadah.appendChild(l); f[kunci] = el; };
-  baris('Nama', mk('input', { type:'text', maxLength:80, required:true, autocomplete:'name' }), 'nama');
+  const baris = (label, el, kunci, induk) => { const l = mk('label', { textContent: label }); l.appendChild(el); (induk || wadah).appendChild(l); f[kunci] = el; };
+  baris('Nama lengkap (sesuai KTP)', mk('input', { type:'text', maxLength:80, required:true, autocomplete:'name' }), 'nama');
   baris('Bio profil (boleh dikosongkan)', mk('textarea', { maxLength:200, rows:2 }), 'bio');
   const jk = mk('select', { required:true });
   [['', 'Pilih…'], ['Laki-laki', 'Laki-laki'], ['Perempuan', 'Perempuan']].forEach(x => jk.appendChild(new Option(x[1], x[0])));
@@ -940,7 +951,16 @@ function isiField(wadah, o) {
   baris('Tanggal lahir', mk('input', { type:'date', required:true, min:'1920-01-01', max:hariIni(), autocomplete:'bday' }), 'tgl');
   baris('No. HP WhatsApp', mk('input', { type:'tel', maxLength:16, required:true, autocomplete:'tel', placeholder:'0812...' }), 'hp');
   baris('Email', mk('input', { type:'email', maxLength:120, required:true, autocomplete:'email', readOnly:!o.emailBisaDiubah }), 'email');
-  baris('Alamat lengkap (wajib)', mk('textarea', { maxLength:250, minLength:10, rows:3, required:true, autocomplete:'street-address', placeholder:'Jalan, nomor, RT/RW, kelurahan, kota' }), 'alamat');
+  const kol = (label, kunci, ex, induk) => baris(label, mk('input', { type:'text', maxLength:150, required:true, placeholder:ex || '' }), kunci, induk);
+  kol('Jalan & nomor rumah/gedung (wajib)', 'jalan', 'Jl. Melati No. 12');
+  const rtrw = mk('div', { className:'dua-kolom' }); wadah.appendChild(rtrw);
+  baris('RT (wajib)', mk('input', { type:'text', inputMode:'numeric', maxLength:3, required:true, placeholder:'003' }), 'rt', rtrw);
+  baris('RW (wajib)', mk('input', { type:'text', inputMode:'numeric', maxLength:3, required:true, placeholder:'005' }), 'rw', rtrw);
+  kol('Kelurahan/Desa (wajib)', 'kelurahan');
+  kol('Kecamatan (wajib)', 'kecamatan');
+  kol('Kota/Kabupaten (wajib)', 'kota');
+  kol('Provinsi (wajib)', 'provinsi');
+  baris('Kode pos (wajib)', mk('input', { type:'text', inputMode:'numeric', maxLength:5, pattern:'[0-9]{5}', required:true, autocomplete:'postal-code', placeholder:'16412' }), 'kodepos');
   const lok = mk('input', { type:'hidden' }); f.lokasi = lok;
   const info = mk('small', { className:'akun-info' });
   const peta = mk('div', { className:'peta-pilih' });
@@ -980,14 +1000,15 @@ function isiField(wadah, o) {
   });
   const tombolCari = mk('button', { type:'button', className:'akun-btn', textContent:'Cari dari alamat' });
   tombolCari.addEventListener('click', async () => {
-    const q = f.alamat.value.trim();
-    if (q.length < 5) { info.textContent = 'Isi alamat dulu, lalu tekan Cari.'; return; }
+    const bagian = [f.kelurahan.value, f.kecamatan.value, f.kota.value, f.provinsi.value].map(x => x.trim()).filter(Boolean);
+    if (bagian.length < 2) { info.textContent = 'Isi kelurahan, kecamatan, dan kota dulu, lalu tekan Cari.'; return; }
     info.textContent = 'Mencari alamat…';
+    const coba = async q => (await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=id&q=' + encodeURIComponent(q))).json();
     try {
-      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=id&q=' + encodeURIComponent(q));
-      const d = await r.json();
+      let d = await coba([f.jalan.value.trim()].concat(bagian).filter(Boolean).join(', '));
+      if (!d.length) d = await coba(bagian.join(', '));
       if (!d.length) { info.textContent = 'Alamat tidak ditemukan di peta. Ketuk peta untuk menaruh pin sendiri.'; return; }
-      taruh(Number(d[0].lat), Number(d[0].lon), 17);
+      taruh(Number(d[0].lat), Number(d[0].lon), 16);
       info.append(' Geser pin kalau kurang pas.');
     } catch (e) { info.textContent = 'Pencarian gagal. Ketuk peta untuk menaruh pin sendiri.'; }
   });
@@ -998,10 +1019,16 @@ function isiField(wadah, o) {
   wadah.append(lok, peta, aksi, info);
   f.nama.value = n.nama || ''; f.bio.value = n.bio || ''; f.jk.value = n.jk || '';
   f.tgl.value = n.tgl || ''; f.hp.value = n.hp || ''; f.email.value = n.email || '';
-  f.alamat.value = n.alamat || ''; lok.value = n.lokasi || ''; catat();
+  ['jalan', 'rt', 'rw', 'kelurahan', 'kecamatan', 'kota', 'provinsi', 'kodepos'].forEach(k => { f[k].value = n[k] || ''; });
+  lok.value = n.lokasi || ''; catat();
   return f;
 }
-const ambilNilai = f => ({ nama:f.nama.value, bio:f.bio.value, jk:f.jk.value, tgl:f.tgl.value, hp:f.hp.value, email:f.email.value, alamat:f.alamat.value, lokasi:f.lokasi.value });
+const ambilNilai = f => ({ nama:f.nama.value, bio:f.bio.value, jk:f.jk.value, tgl:f.tgl.value, hp:f.hp.value, email:f.email.value, jalan:f.jalan.value, rt:f.rt.value, rw:f.rw.value, kelurahan:f.kelurahan.value, kecamatan:f.kecamatan.value, kota:f.kota.value, provinsi:f.provinsi.value, kodepos:f.kodepos.value, lokasi:f.lokasi.value });
+
+async function muatWaAdmin() {
+  if (WA_ADMIN || !customerToken) return;
+  try { const r = await panggilAPI('waAdmin', { customerToken }); WA_ADMIN = String(r.wa || ''); } catch (e) {}
+}
 
 async function muatAkunPelanggan() {
   if (!customerToken) {
@@ -1012,6 +1039,7 @@ async function muatAkunPelanggan() {
   try {
     const d = await panggilAPI('customerProfile', { customerToken });
     customerUser = d.user; segarkanRingkas();
+    if (d.user.terdaftar) await muatWaAdmin();
     if (d.user.terdaftar) {
       tampilAkun('akunProfil');
       $('akunEmail').textContent = 'Masuk sebagai ' + d.user.email;
@@ -1110,8 +1138,25 @@ function gambarPesananPelanggan(daftar) {
       aksi('Barang sudah diterima (Selesai)', () => ubah(o, 'Selesai', 'Konfirmasi barang ' + o.id + ' sudah diterima?'));
     } else if (o.status === 'Selesai') {
       if (o.video) {
-        row.appendChild(mk('small', { textContent:'Video unboxing sudah diunggah. Lanjutkan klaim garansi ke admin lewat WhatsApp.' }));
-        if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin via WhatsApp' }));
+        if (o.rating) {
+          row.appendChild(mk('small', { textContent:'Rating Anda: ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating) + ' · Terima kasih!' }));
+        } else {
+          const bar = mk('div', { className:'bintang' });
+          bar.appendChild(mk('small', { textContent:'Beri rating:' }));
+          for (let n = 1; n <= 5; n++) {
+            const b = mk('button', { type:'button', className:'bintang-btn', textContent:'☆', title:n + ' bintang' });
+            b.addEventListener('click', async () => {
+              if (!confirm('Beri ' + n + ' bintang untuk pesanan ' + o.id + '?')) return;
+              sAkun('Mengirim rating…');
+              try { await panggilAPI('beriRating', { customerToken, id:o.id, rating:n }); await muatAkunPelanggan(); sAkun('Terima kasih atas rating Anda.'); }
+              catch (e) { sAkun(e.message, true); }
+            });
+            bar.appendChild(b);
+          }
+          row.appendChild(bar);
+        }
+        row.appendChild(mk('small', { textContent:'Ada komplain atau klaim garansi? Silakan chat admin.' }));
+        if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau menyampaikan komplain / klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin (komplain / klaim garansi)' }));
       } else {
         row.appendChild(mk('small', { textContent:'Mau klaim garansi? Unggah video unboxing (durasi maksimal 1 menit 30 detik, maks 300 MB). Tombol chat WhatsApp muncul setelah video terunggah.' }));
         const inp = mk('input', { type:'file', accept:'video/*' }), st = mk('small', {});
@@ -1168,7 +1213,7 @@ async function kirimKode(tombol, data) {
 $('formDaftar').addEventListener('submit', e => {
   e.preventDefault();
   const v = ambilNilai(fDaftar);
-  kirimKode($('btnKirimKodeDaftar'), { mode:'daftar', email:v.email, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp, alamat:v.alamat, lokasi:v.lokasi });
+  kirimKode($('btnKirimKodeDaftar'), Object.assign({ mode:'daftar' }, v));
 });
 $('formMasukEmail').addEventListener('submit', e => {
   e.preventDefault();
@@ -1190,7 +1235,7 @@ async function simpanDariForm(f, tombol, pesanSukses) {
   tombol.disabled = true; sAkun('Menyimpan…');
   try {
     const v = ambilNilai(f);
-    const d = await panggilAPI('customerSaveProfile', { customerToken, nama:v.nama, bio:v.bio, jk:v.jk, tgl:v.tgl, hp:v.hp, alamat:v.alamat, lokasi:v.lokasi });
+    const d = await panggilAPI('customerSaveProfile', Object.assign({ customerToken }, v));
     customerUser = d.user; segarkanRingkas();
     await muatAkunPelanggan();
     sAkun(pesanSukses);
@@ -1222,7 +1267,11 @@ function buatBeli(p) {
   box.appendChild(mk('p', { className: 'd-harga', textContent: p.harga !== '' ? rp(harga) + (infoStok(p) ? ' · ' + infoStok(p) : '') : 'Hubungi admin untuk harga' }));
 
   const wa = (teks, label) => mk('a', { className: 'btn-wa', href: waLink(teks), target: '_blank', rel: 'noopener', textContent: label, hidden: !WA_ADMIN });
-  if (!bisa) { box.appendChild(wa('Halo admin VBR, saya mau tanya ' + p.nama + '.', 'Tanya admin via WhatsApp')); return; }
+  if (!bisa) {
+    box.appendChild(wa('Halo admin VBR, saya mau tanya ' + p.nama + '.', 'Tanya admin via WhatsApp'));
+    if (!WA_ADMIN) box.appendChild(mk('p', { className: 'd-pesan', textContent: 'Untuk bertanya ke admin, silakan daftar atau masuk dulu lewat menu ☰ di kiri atas.' }));
+    return;
+  }
   if (!customerToken || !customerUser || !customerUser.terdaftar) {
     const lengkap = customerToken && customerUser && !customerUser.terdaftar;
     box.appendChild(mk('p', { className: 'd-pesan salah', textContent: lengkap
@@ -1234,11 +1283,12 @@ function buatBeli(p) {
   const form = mk('form');
   const field = (label, el) => { const l = mk('label', { textContent: label }); l.appendChild(el); form.appendChild(l); return el; };
   const qty = field('Jumlah', mk('input', { type: 'number', min: 1, max: (Number(p.stok) > 0 ? Math.min(99, Number(p.stok)) : 99), value: 1, required: true }));
-  const nm = field('Nama penerima', mk('input', { type: 'text', maxLength: 60, required: true, autocomplete: 'name', value: customerUser && customerUser.nama ? customerUser.nama : '' }));
+  const nm = field('Nama lengkap penerima (sesuai KTP)', mk('input', { type: 'text', maxLength: 60, required: true, autocomplete: 'name', value: customerUser && customerUser.nama ? customerUser.nama : '' }));
   const hp = field('No. HP / WhatsApp', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'tel', placeholder: '0812...', value: customerUser && customerUser.hp ? customerUser.hp : '' }));
   const hpAkun = customerUser && customerUser.hp ? customerUser.hp : '';
   const hp2 = field('Ketik ulang No. HP', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'off', placeholder: 'Ulangi nomor HP', value: hpAkun }));
-  const al = field('Alamat lengkap', mk('textarea', { maxLength: 250, required: true, autocomplete: 'street-address', placeholder: 'Alamat tersimpan otomatis untuk pembelian berikutnya' }));
+  const al = field('Alamat pengiriman', mk('textarea', { maxLength: 250, required: true, readOnly: true, rows: 4 }));
+  al.closest('label').appendChild(mk('small', { textContent: 'Alamat diambil dari akun Anda. Untuk mengubah, buka menu ☰ lalu Akun & Pesanan.' }));
   if (customerUser && customerUser.alamat) al.value = customerUser.alamat;
   // Nomor dari akun sudah terverifikasi saat daftar; kalau nomor diubah, wajib diketik ulang
   hp.addEventListener('input', () => { if (normHp(hp.value) !== normHp(hpAkun)) { if (normHp(hp2.value) === normHp(hpAkun)) hp2.value = ''; } });
