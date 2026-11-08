@@ -30,6 +30,17 @@
   .kartu .bintang { color: #F5A623; letter-spacing: 1px; }
   .kartu p { margin: 8px 0 0; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
   .kartu small { color: var(--muted, #5c6673); }
+  .galeri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 18px; }
+  .gitem { position: relative; padding: 0; border: 0; border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: #d9dee4; cursor: pointer; }
+  .gitem img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gitem .main { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 2rem; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+  h2 { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: 1.1rem; margin: 18px 0 8px; }
+  .lb { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px; z-index: 50; }
+  .lb[hidden] { display: none; }
+  .lb img, .lb iframe { max-width: 100%; max-height: 70vh; border: 0; border-radius: 10px; background: #000; }
+  .lb iframe { width: min(92vw, 640px); height: 60vh; }
+  .lb .cap { color: #fff; margin-top: 12px; max-width: 640px; text-align: center; font-size: .92rem; line-height: 1.4; }
+  .lb button { position: absolute; top: 12px; right: 12px; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; }
   .kosong { color: var(--muted, #5c6673); }
 </style>
 </head>
@@ -38,13 +49,53 @@
 <main>
   <h1 id="judul">Ulasan</h1>
   <p class="ringkas" id="ringkas"></p>
+  <section id="boxGaleri" hidden><h2>Foto &amp; video pembeli</h2><div class="galeri" id="galeri"></div></section>
+  <h2>Ulasan pembeli</h2>
   <div id="daftar"><p class="kosong">Memuat ulasan…</p></div>
 </main>
+<div class="lb" id="lb" hidden><button type="button" id="lbTutup">Tutup</button><div id="lbIsi"></div><div class="cap" id="lbCap"></div></div>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
 const nama = new URLSearchParams(location.search).get('produk') || '';
 const el = id => document.getElementById(id);
 function pesan(t) { el('daftar').textContent = ''; const p = document.createElement('p'); p.className = 'kosong'; p.textContent = t; el('daftar').appendChild(p); }
+const idOk = x => /^[A-Za-z0-9_-]{10,80}$/.test(String(x));
+function bukaLb(item) {
+  const isi = el('lbIsi'); isi.textContent = '';
+  if (item.tipe === 'video') {
+    const f = document.createElement('iframe');
+    f.src = 'https://drive.google.com/file/d/' + item.id + '/preview'; f.allow = 'autoplay'; f.allowFullscreen = true;
+    isi.appendChild(f);
+  } else {
+    const im = document.createElement('img');
+    im.src = 'https://drive.google.com/thumbnail?id=' + item.id + '&sz=w1600'; im.alt = 'Foto pembeli';
+    isi.appendChild(im);
+  }
+  el('lbCap').textContent = item.nama + ' · ' + '\u2605'.repeat(item.bintang) + (item.komentar ? ' · ' + item.komentar : '');
+  el('lb').hidden = false;
+}
+function tutupLb() { el('lb').hidden = true; el('lbIsi').textContent = ''; }
+el('lbTutup').addEventListener('click', tutupLb);
+el('lb').addEventListener('click', e => { if (e.target === el('lb')) tutupLb(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') tutupLb(); });
+function buatGaleri(ulasan) {
+  const item = [];
+  ulasan.forEach(u => {
+    if (u.video && idOk(u.video)) item.push({ tipe: 'video', id: u.video, nama: u.nama, bintang: u.bintang, komentar: u.komentar });
+    (u.foto || []).filter(idOk).forEach(f => item.push({ tipe: 'foto', id: f, nama: u.nama, bintang: u.bintang, komentar: u.komentar }));
+  });
+  if (!item.length) return;
+  el('boxGaleri').hidden = false;
+  item.slice(0, 60).forEach(it => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'gitem';
+    const im = document.createElement('img'); im.loading = 'lazy'; im.alt = it.tipe === 'video' ? 'Video pembeli' : 'Foto pembeli';
+    im.src = 'https://drive.google.com/thumbnail?id=' + it.id + '&sz=w400';
+    b.appendChild(im);
+    if (it.tipe === 'video') { const p = document.createElement('span'); p.className = 'main'; p.textContent = '\u25B6'; b.appendChild(p); }
+    b.addEventListener('click', () => bukaLb(it));
+    el('galeri').appendChild(b);
+  });
+}
 (async function () {
   if (!nama) { pesan('Produk tidak dipilih. Buka halaman ini dari katalog.'); return; }
   el('judul').textContent = nama;
@@ -54,6 +105,7 @@ function pesan(t) { el('daftar').textContent = ''; const p = document.createElem
     const d = await res.json();
     if (!d.ok) throw new Error(d.error || 'Gagal memuat ulasan');
     el('ringkas').textContent = d.jumlah ? '★ ' + Number(d.rata).toFixed(1) + ' · ' + d.jumlah + ' ulasan' : '';
+    buatGaleri(d.ulasan);
     if (!d.ulasan.length) { pesan('Belum ada ulasan untuk produk ini.'); return; }
     el('daftar').textContent = '';
     d.ulasan.forEach(u => {

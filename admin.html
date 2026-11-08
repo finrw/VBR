@@ -311,6 +311,8 @@ function gambarDashboard(d) {
     if (o.video) { i.append(' · '); const v = document.createElement('a'); v.href = o.video; v.target = '_blank'; v.rel = 'noopener'; v.textContent = 'Video unboxing'; i.appendChild(v); }
     if (o.rating) i.append(' · Rating ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating));
     if (o.ulasan) i.append(' · Ulasan: ' + o.ulasan + (o.sembunyi ? ' (disembunyikan)' : ''));
+    (o.fotoUlasan || []).forEach((fid, n) => { i.append(' · '); const fa = document.createElement('a'); fa.href = 'https://drive.google.com/file/d/' + fid + '/view'; fa.target = '_blank'; fa.rel = 'noopener'; fa.textContent = 'Foto ' + (n + 1); i.appendChild(fa); });
+    if (o.publik) i.append(' · Tampil publik');
     const sel = document.createElement('select');
     const daftar = STATUS.slice();
     if (!daftar.some(t => t[0] === o.status)) daftar.unshift([o.status, o.status === 'Selesai' ? 'Selesai (konfirmasi pembeli)' : o.status]);
@@ -321,7 +323,7 @@ function gambarDashboard(d) {
     };
     if (o.status === 'Selesai' || o.status === 'Dibatalkan') sel.disabled = true;
     r.append(a, i, sel);
-    if (o.ulasan) {
+    if (o.ulasan || o.publik || (o.fotoUlasan && o.fotoUlasan.length)) {
       const ub = document.createElement('button');
       ub.type = 'button'; ub.textContent = o.sembunyi ? 'Tampilkan ulasan' : 'Sembunyikan ulasan';
       ub.style.cssText = 'margin-left:8px;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font:inherit';

@@ -830,7 +830,7 @@ function bukaDetail(p) {
   let dr = document.getElementById('dRating');
   if (!dr) { dr = document.createElement('p'); dr.id = 'dRating'; dr.className = 'rating-kartu'; document.getElementById('dNama').after(dr); }
   dr.textContent = teksRating(p) + ' '; dr.hidden = !(p.ulasan > 0);
-  if (p.ulasan > 0) dr.appendChild(mk('a', { href:'ulasan.html?produk=' + encodeURIComponent(p.nama), target:'_blank', rel:'noopener', textContent:'Lihat ulasan' }));
+  if (p.ulasan > 0) dr.appendChild(mk('a', { href:'ulasan.html?produk=' + encodeURIComponent(p.nama), target:'_blank', rel:'noopener', textContent:'Lihat ulasan, foto & video' }));
   const ul = document.getElementById('dList');
   ul.textContent = '';
   barisDetail(p.detail).forEach(t => {
@@ -1130,6 +1130,45 @@ async function unggahVideo(o, file, info, sesi) {
   await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:sesi.hasil.id, durasi:Math.round(sesi.dur) });
 }
 
+function kecilkanFoto(file) {
+  return new Promise((ok, gagal) => {
+    const u = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1280 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u);
+      c.toBlob(b => b ? ok(b) : gagal(new Error('Foto tidak bisa diproses.')), 'image/jpeg', 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); gagal(new Error('Foto tidak bisa dibaca. Pakai foto format JPG atau PNG.')); };
+    img.src = u;
+  });
+}
+async function kirimBerkasDrive(url, blob, info, label) {
+  const POTONG = 1024 * 1024;
+  let mulai = 0, hasil = null;
+  while (!hasil) {
+    const akhir = Math.min(mulai + POTONG, blob.size);
+    let r = null;
+    for (let coba = 1; coba <= 6 && !r; coba++) {
+      try {
+        const h = await kirimPotongan(url, blob.slice(mulai, akhir), 'bytes ' + mulai + '-' + (akhir - 1) + '/' + blob.size);
+        if (h.status >= 500) throw new Error('Server sibuk');
+        r = h;
+      } catch (e) {
+        if (coba === 6) throw new Error(label + ' gagal terunggah karena koneksi terganggu.');
+        info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/5)…';
+        await tunggu(1000 * coba);
+      }
+    }
+    if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); mulai = m ? Number(m[1]) + 1 : akhir; }
+    else if (r.status === 200 || r.status === 201) hasil = JSON.parse(r.teks);
+    else throw new Error(label + ' ditolak (kode ' + r.status + ').');
+  }
+  return hasil.id;
+}
+
 function ringkasBayar(o) {
   if (o.status === 'Dibatalkan') return rp(o.total);
   if (o.ongkir === null || o.ongkir === undefined) return rp(o.total) + ' · Ongkir: menunggu diisi admin';
@@ -1193,6 +1232,7 @@ function gambarPesananPelanggan(daftar) {
           row.appendChild(mk('small', { textContent:'Rating Anda: ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating) + ' · Terima kasih!' }));
           if (o.komentar) row.appendChild(mk('small', { textContent:'Ulasan Anda: ' + o.komentar }));
           row.appendChild(mk('small', { textContent:'Nama di ulasan: ' + (o.namaTampil ? 'ditampilkan' : 'disamarkan') }));
+          row.appendChild(mk('small', { textContent:'Video unboxing dan foto: ' + (o.publik ? 'ditampilkan di halaman ulasan produk' : 'tidak ditampilkan (hanya admin)') }));
         } else {
           let pilih = 0;
           const bar = mk('div', { className:'bintang' }), tombol = [], form = mk('div', {});
@@ -1203,7 +1243,11 @@ function gambarPesananPelanggan(daftar) {
           const cekNama = mk('input', { type:'checkbox' });
           const lblNama = mk('label', { className:'garansi' });
           lblNama.append(cekNama, document.createTextNode('Tampilkan nama saya di ulasan. Kalau tidak dicentang, nama disamarkan (contoh: M***s).'));
-          form.append(ta, lblNama, kirim);
+          const fotoIn = mk('input', { type:'file', accept:'image/*', multiple:true });
+          const st2 = mk('small', { textContent:'Foto (opsional, maks 3 foto).' });
+          fotoIn.addEventListener('change', () => { if (fotoIn.files.length > 3) { st2.textContent = 'Maksimal 3 foto. Pilih ulang.'; fotoIn.value = ''; } else st2.textContent = fotoIn.files.length ? fotoIn.files.length + ' foto dipilih.' : 'Foto (opsional, maks 3 foto).'; });
+          const infoPublik = mk('small', { textContent:'Dengan mengirim ulasan, video unboxing dan foto Anda akan tampil di halaman ulasan produk (bisa dilihat semua pengunjung). Jangan sertakan alamat atau data pribadi. Ingin dihapus? Hubungi admin.' });
+          form.append(ta, fotoIn, st2, infoPublik, lblNama, kirim);
           for (let n = 1; n <= 5; n++) {
             const b = mk('button', { type:'button', className:'bintang-btn', textContent:'☆', title:n + ' bintang' });
             b.addEventListener('click', () => { pilih = n; tombol.forEach((x, i) => { x.textContent = i < n ? '★' : '☆'; }); form.hidden = false; });
@@ -1213,10 +1257,17 @@ function gambarPesananPelanggan(daftar) {
             if (!pilih) return;
             kirim.disabled = true; sAkun('Mengirim ulasan…');
             try {
-              await panggilAPI('beriRating', { customerToken, id:o.id, rating:pilih, komentar:ta.value, tampilNama:cekNama.checked });
+              const fotoId = [], berkas = Array.from(fotoIn.files);
+              for (let i = 0; i < berkas.length; i++) {
+                st2.textContent = 'Mengunggah foto ' + (i + 1) + ' dari ' + berkas.length + '…';
+                const kecil = await kecilkanFoto(berkas[i]);
+                const m = await panggilAPI('ulasanMulai', { customerToken, id:o.id, no:i + 1, size:kecil.size, mime:'image/jpeg' });
+                fotoId.push(await kirimBerkasDrive(m.uploadUrl, kecil, st2, 'Foto ' + (i + 1)));
+              }
+              await panggilAPI('beriRating', { customerToken, id:o.id, rating:pilih, komentar:ta.value, tampilNama:cekNama.checked, foto:fotoId, publik:true });
               await muatAkunPelanggan(); segarkanStok();
               sAkun('Terima kasih atas ulasan Anda.');
-            } catch (e) { sAkun(e.message, true); kirim.disabled = false; }
+            } catch (e) { sAkun(e.message, true); st2.textContent = e.message; kirim.disabled = false; }
           });
           row.append(bar, form);
         }
