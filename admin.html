@@ -55,6 +55,9 @@
   .pes small { display: block; color: var(--muted); overflow-wrap: anywhere; }
   .atasan { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--muted); font-size: .85rem; }
   .atasan button { padding: 6px 14px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); font: inherit; }
+  .tab { display:flex; gap:8px; margin:12px 0; }
+  .tab button { flex:1; padding:12px; border-radius:10px; border:1.5px solid var(--accent); background:transparent; color:var(--accent); font:inherit; font-weight:600; cursor:pointer; }
+  .tab button.aktif { background:var(--accent); color:#fff; }
 </style>
 </head>
 <body>
@@ -75,9 +78,16 @@
   <!-- ===== Admin ===== -->
   <div id="boxAdmin" hidden>
     <div class="atasan"><span id="infoSync">Menyinkronkan…</span><button type="button" id="btnKeluar">Keluar</button></div>
+    <nav class="tab" id="tab">
+      <button type="button" data-tab="pesanan" class="aktif">Pesanan</button>
+      <button type="button" data-tab="produk">Produk &amp; stok</button>
+    </nav>
+    <div id="tabPesanan">
     <section class="kartu"><h2>Ringkasan</h2><div class="kpi" id="kpi"></div></section>
-    <section class="kartu"><h2>Harga &amp; stok</h2><div id="hs">Memuat…</div></section>
     <section class="kartu"><h2>Pesanan</h2><div id="pesananBox">Memuat…</div></section>
+    </div>
+    <div id="tabProduk" hidden>
+    <section class="kartu"><h2>Harga &amp; stok</h2><div id="hs">Memuat…</div></section>
     <section class="kartu">
       <h2>Tambah produk</h2>
       <form id="form">
@@ -100,11 +110,11 @@
         <p class="pesan" id="pesan" role="status"></p>
       </form>
     </section>
-
     <section class="kartu">
       <h2>Produk di katalog</h2>
       <div id="daftar">Memuat…</div>
     </section>
+    </div>
   </div>
 </main>
 
@@ -465,6 +475,15 @@ $('form').addEventListener('submit', async e => {
     btn.disabled = false;
   }
 });
+
+function pilihTab(t) {
+  document.getElementById('tabPesanan').hidden = t !== 'pesanan';
+  document.getElementById('tabProduk').hidden = t !== 'produk';
+  document.querySelectorAll('#tab button').forEach(b => b.classList.toggle('aktif', b.dataset.tab === t));
+  try { localStorage.setItem('vbr_admin_tab', t); } catch (e) {}
+}
+document.querySelectorAll('#tab button').forEach(b => b.addEventListener('click', () => pilihTab(b.dataset.tab)));
+try { pilihTab(localStorage.getItem('vbr_admin_tab') === 'produk' ? 'produk' : 'pesanan'); } catch (e) { pilihTab('pesanan'); }
 </script>
 </body>
 </html>

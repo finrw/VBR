@@ -272,6 +272,8 @@
   .rating-kartu a { margin-left:6px; font-weight:500; }
   .akun-order label.garansi { display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-size:.86rem; line-height:1.4; }
   .akun-order label.garansi input { width:20px; height:20px; margin:2px 0 0; padding:0; flex:none; }
+  .catatan-harga { display:block; color:var(--muted); font-size:.85rem; margin-top:2px; }
+  .akun-order video { width:100%; margin-top:8px; border-radius:10px; background:#000; }
   .akun-atau { margin:14px 0 4px; text-align:center; color:var(--muted); font-size:.88rem; }
   .akun-pilih { display:grid; gap:10px; margin-top:10px; }
   .akun-isi .akun-btn { width:100%; margin-top:10px; }
@@ -1076,34 +1078,56 @@ function bacaDurasi(file) {
     v.src = u;
   });
 }
-function kirimPotongan(url, blob, awal, total) {
+function kirimPotongan(url, blob, rentang) {
   return new Promise((ok, gagal) => {
     const x = new XMLHttpRequest();
     x.open('PUT', url);
-    x.setRequestHeader('Content-Range', 'bytes ' + awal + '-' + (awal + blob.size - 1) + '/' + total);
-    x.onload = () => ok({ status: x.status, teks: x.responseText });
-    x.onerror = () => gagal(new Error('Unggah gagal. Periksa koneksi lalu coba lagi, atau hubungi admin.'));
+    x.timeout = 90000;
+    x.setRequestHeader('Content-Range', rentang);
+    x.onload = () => ok({ status: x.status, teks: x.responseText, range: x.getResponseHeader('Range') || '' });
+    x.onerror = () => gagal(new Error('Koneksi terganggu'));
+    x.ontimeout = () => gagal(new Error('Waktu habis'));
     x.send(blob);
   });
 }
-async function unggahVideo(o, file, info) {
+const tunggu = ms => new Promise(r => setTimeout(r, ms));
+async function unggahVideo(o, file, info, sesi) {
   if (!/^video\//.test(file.type)) throw new Error('File harus berupa video.');
   if (file.size > 300 * 1024 * 1024) throw new Error('Ukuran video maksimal 300 MB.');
-  const dur = await bacaDurasi(file);
-  if (dur > 90.5) throw new Error('Durasi video maksimal 1 menit 30 detik (video Anda ' + Math.round(dur) + ' detik).');
-  const m = await panggilAPI('garansiMulai', { customerToken, id:o.id, size:file.size, mime:file.type, durasi:Math.round(dur) });
-  const POTONG = 8 * 1024 * 1024;
-  let mulai = 0, hasil = null;
-  while (mulai < file.size) {
-    const akhir = Math.min(mulai + POTONG, file.size);
-    const r = await kirimPotongan(m.uploadUrl, file.slice(mulai, akhir), mulai, file.size);
-    if (r.status === 308) mulai = akhir;
-    else if (r.status === 200 || r.status === 201) { hasil = JSON.parse(r.teks); mulai = file.size; }
-    else throw new Error('Unggah gagal (kode ' + r.status + '). Coba lagi atau hubungi admin.');
-    info.textContent = 'Mengunggah… ' + Math.round(mulai / file.size * 100) + '%';
+  if (sesi.dur === undefined) sesi.dur = await bacaDurasi(file);
+  if (sesi.dur > 90.5) throw new Error('Durasi video maksimal 1 menit 30 detik (video Anda ' + Math.round(sesi.dur) + ' detik).');
+  if (!sesi.url) {
+    const m = await panggilAPI('garansiMulai', { customerToken, id:o.id, size:file.size, mime:file.type, durasi:Math.round(sesi.dur) });
+    sesi.url = m.uploadUrl; sesi.mulai = 0; sesi.hasil = null;
   }
-  if (!hasil || !hasil.id) throw new Error('Unggah belum selesai. Coba lagi.');
-  await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:hasil.id, durasi:Math.round(dur) });
+  const POTONG = 2 * 1024 * 1024;   // kelipatan 256 KB; potongan kecil + coba ulang otomatis agar tahan sinyal naik-turun
+  while (!sesi.hasil && sesi.mulai < file.size) {
+    const awal = sesi.mulai, akhir = Math.min(awal + POTONG, file.size);
+    let r = null;
+    for (let coba = 1; coba <= 6 && !r; coba++) {
+      try {
+        const h = await kirimPotongan(sesi.url, file.slice(awal, akhir), 'bytes ' + awal + '-' + (akhir - 1) + '/' + file.size);
+        if (h.status >= 500) throw new Error('Server sibuk');
+        r = h;
+      } catch (e) {
+        if (coba === 6) throw new Error('Unggah terhenti di ' + Math.round(awal / file.size * 100) + '% karena koneksi terganggu.');
+        info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/5)…';
+        await tunggu(1000 * coba);
+      }
+    }
+    if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); sesi.mulai = m ? Number(m[1]) + 1 : akhir; }
+    else if (r.status === 200 || r.status === 201) { sesi.hasil = JSON.parse(r.teks); sesi.mulai = file.size; }
+    else if (r.status === 404 || r.status === 410) { sesi.url = null; throw new Error('Sesi unggah berakhir.'); }
+    else throw new Error('Unggah ditolak (kode ' + r.status + ').');
+    info.textContent = 'Mengunggah… ' + Math.round(Math.min(sesi.mulai, file.size) / file.size * 100) + '%';
+  }
+  if (!sesi.hasil) {
+    const r = await kirimPotongan(sesi.url, new Blob([]), 'bytes */' + file.size);
+    if (r.status === 200 || r.status === 201) sesi.hasil = JSON.parse(r.teks);
+    else throw new Error('Unggah belum lengkap.');
+  }
+  info.textContent = 'Menyimpan…';
+  await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:sesi.hasil.id, durasi:Math.round(sesi.dur) });
 }
 
 function ringkasBayar(o) {
@@ -1131,6 +1155,7 @@ function gambarPesananPelanggan(daftar) {
       mk('small', { textContent:ringkasBayar(o) }));
     if (o.resi && (o.status === 'Dikemas' || o.status === 'Dikirim' || o.status === 'Selesai')) {
       row.appendChild(mk('small', { textContent:'Kurir: ' + (o.kurir || '-') + ' · Resi: ' + o.resi }));
+      if (o.status !== 'Selesai') {
       const kotak = mk('div', { className:'peta-aksi' });
       const salin = mk('button', { type:'button', className:'akun-btn', textContent:'Salin resi' });
       salin.addEventListener('click', async () => {
@@ -1138,6 +1163,7 @@ function gambarPesananPelanggan(daftar) {
       });
       kotak.append(salin, mk('a', { className:'akun-btn', href:'https://cekresi.com/?noresi=' + encodeURIComponent(o.resi), target:'_blank', rel:'noopener', textContent:'Lacak paket' }));
       row.appendChild(kotak);
+      }
     }
     const aksi = (teks, fn) => { const b = mk('button', { type:'button', className:'akun-btn', textContent:teks }); b.addEventListener('click', fn); row.appendChild(b); };
     if (o.status === 'Baru') {
@@ -1149,6 +1175,20 @@ function gambarPesananPelanggan(daftar) {
       aksi('Barang sudah diterima (Selesai)', () => ubah(o, 'Selesai', 'Konfirmasi barang ' + o.id + ' sudah diterima?'));
     } else if (o.status === 'Selesai') {
       if (o.video) {
+        const barisVideo = mk('div', { className:'peta-aksi' });
+        barisVideo.appendChild(mk('a', { className:'akun-btn', href:o.video, target:'_blank', rel:'noopener', textContent:'Lihat video saya' }));
+        if (o.bisaGanti) {
+          const ganti = mk('button', { type:'button', className:'akun-btn', textContent:'Ganti video' });
+          ganti.addEventListener('click', async () => {
+            if (!confirm('Ganti video untuk pesanan ' + o.id + '? Video yang lama tidak akan dipakai lagi.')) return;
+            sAkun('Memproses…');
+            try { await panggilAPI('garansiGanti', { customerToken, id:o.id }); await muatAkunPelanggan(); sAkun('Silakan pilih video yang baru.'); }
+            catch (e) { sAkun(e.message, true); }
+          });
+          barisVideo.appendChild(ganti);
+        }
+        row.appendChild(barisVideo);
+        if (o.bisaGanti) row.appendChild(mk('small', { textContent:'Salah pilih video? Anda bisa menggantinya dalam 60 menit setelah diunggah.' }));
         if (o.rating) {
           row.appendChild(mk('small', { textContent:'Rating Anda: ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating) + ' · Terima kasih!' }));
           if (o.komentar) row.appendChild(mk('small', { textContent:'Ulasan Anda: ' + o.komentar }));
@@ -1185,14 +1225,31 @@ function gambarPesananPelanggan(daftar) {
       } else {
         row.appendChild(mk('small', { textContent:'Mau klaim garansi? Unggah video unboxing (durasi maksimal 1 menit 30 detik, maks 300 MB). Tombol chat WhatsApp muncul setelah video terunggah.' }));
         const inp = mk('input', { type:'file', accept:'video/*' }), st = mk('small', {});
-        inp.addEventListener('change', async () => {
-          const file = inp.files[0];
-          if (!file) return;
-          inp.disabled = true; st.textContent = 'Memeriksa video…';
-          try { await unggahVideo(o, file, st); await muatAkunPelanggan(); sAkun('Video terunggah. Tombol chat WhatsApp sekarang tersedia.'); }
-          catch (e) { st.textContent = e.message; inp.disabled = false; inp.value = ''; }
+        const pv = mk('video', { controls:true, playsInline:true, preload:'metadata' });
+        const kotakUp = mk('div', { className:'peta-aksi' });
+        const unggah = mk('button', { type:'button', className:'akun-btn', textContent:'Unggah video ini' });
+        const ulang = mk('button', { type:'button', className:'akun-btn', textContent:'Pilih ulang' });
+        pv.hidden = true; kotakUp.hidden = true;
+        kotakUp.append(unggah, ulang);
+        let berkas = null, sesi = {};
+        inp.addEventListener('change', () => {
+          berkas = inp.files[0] || null; sesi = {};
+          if (!berkas) return;
+          if (pv.src) URL.revokeObjectURL(pv.src);
+          pv.src = URL.createObjectURL(berkas); pv.hidden = false; kotakUp.hidden = false;
+          st.textContent = 'Periksa video di atas. Kalau sudah benar, tekan Unggah video ini.';
         });
-        row.append(inp, st);
+        ulang.addEventListener('click', () => {
+          inp.value = ''; berkas = null; sesi = {};
+          pv.pause(); pv.removeAttribute('src'); pv.hidden = true; kotakUp.hidden = true; st.textContent = '';
+        });
+        unggah.addEventListener('click', async () => {
+          if (!berkas) return;
+          unggah.disabled = ulang.disabled = inp.disabled = true;
+          try { await unggahVideo(o, berkas, st, sesi); await muatAkunPelanggan(); sAkun('Video terunggah. Tombol chat WhatsApp sekarang tersedia.'); }
+          catch (e) { st.textContent = e.message + ' Tekan Unggah video ini untuk mencoba lagi.'; unggah.disabled = ulang.disabled = inp.disabled = false; }
+        });
+        row.append(inp, st, pv, kotakUp);
       }
     }
     box.appendChild(row);
@@ -1290,6 +1347,7 @@ function buatBeli(p) {
   const harga = Number(p.harga);
   const bisa = p.harga !== '' && harga > 0 && p.status && p.status !== 'Habis';
   box.appendChild(mk('p', { className: 'd-harga', textContent: p.harga !== '' ? rp(harga) + (infoStok(p) ? ' · ' + infoStok(p) : '') : 'Hubungi admin untuk harga' }));
+  if (p.harga !== '') box.appendChild(mk('small', { className: 'catatan-harga', textContent: 'Harga sudah termasuk PPN. Belum termasuk ongkir.' }));
 
   const wa = (teks, label) => mk('a', { className: 'btn-wa', href: waLink(teks), target: '_blank', rel: 'noopener', textContent: label, hidden: !WA_ADMIN });
   if (!bisa) {
@@ -1332,7 +1390,7 @@ function buatBeli(p) {
   const segarkan = () => {
     const n = parseInt(qty.value, 10) || 1, banyak = n > BATAS_QTY;
     total.textContent = 'Total: ' + rp(harga * Math.max(n, 1));
-    total.append(mk('small', { textContent: 'Belum termasuk ongkir. Ongkir diisi admin setelah pesanan masuk.' }));
+    total.append(mk('small', { textContent: 'Harga sudah termasuk PPN, belum termasuk ongkir. Ongkir diisi admin setelah pesanan masuk.' }));
     [nm, hp, hp2, al].forEach(el => { el.closest('label').hidden = banyak; });
     cap.hidden = kirim.hidden = garL.hidden = banyak;
     waBanyak.hidden = !banyak || !WA_ADMIN;
@@ -1364,8 +1422,8 @@ function buatBeli(p) {
       const j = await res.json();
       if (!j.ok) throw new Error(j.pesan || 'Pesanan gagal dikirim');
       form.hidden = true;
-      tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + '. Bayar dalam 1 jam, jika tidak pesanan dibatalkan otomatis. Kirim ID ini ke admin untuk pembayaran.', false);
-      if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total) + ' (belum termasuk ongkir)', 'Kirim konfirmasi ke admin'));
+      tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + ' (sudah termasuk PPN, belum termasuk ongkir). Bayar dalam 1 jam, jika tidak pesanan dibatalkan otomatis. Kirim ID ini ke admin untuk pembayaran.', false);
+      if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total) + ' (sudah termasuk PPN, belum termasuk ongkir)', 'Kirim konfirmasi ke admin'));
     } catch (err) {
       tulis(err.message, true);
       if (/admin/i.test(err.message) && WA_ADMIN && !box.querySelector('.tambah')) {
