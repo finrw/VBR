@@ -268,6 +268,10 @@
   .akun-order .bintang-btn { width:auto; border:none; background:transparent; color:#F5A623; font-size:1.9rem; line-height:1; padding:2px 6px; cursor:pointer; }
   .rating-kartu { margin:3px 0 0; color:#B26A00; font-weight:600; font-size:.88rem; }
   .dua-kolom { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .akun-order textarea { width:100%; box-sizing:border-box; margin-top:6px; padding:10px; border:1.5px solid var(--line); border-radius:10px; font:inherit; }
+  .rating-kartu a { margin-left:6px; font-weight:500; }
+  .akun-order label.garansi { display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-size:.86rem; line-height:1.4; }
+  .akun-order label.garansi input { width:20px; height:20px; margin:2px 0 0; padding:0; flex:none; }
   .akun-atau { margin:14px 0 4px; text-align:center; color:var(--muted); font-size:.88rem; }
   .akun-pilih { display:grid; gap:10px; margin-top:10px; }
   .akun-isi .akun-btn { width:100%; margin-top:10px; }
@@ -823,7 +827,8 @@ function bukaDetail(p) {
   document.getElementById('dNama').textContent = p.nama;
   let dr = document.getElementById('dRating');
   if (!dr) { dr = document.createElement('p'); dr.id = 'dRating'; dr.className = 'rating-kartu'; document.getElementById('dNama').after(dr); }
-  dr.textContent = teksRating(p); dr.hidden = !(p.ulasan > 0);
+  dr.textContent = teksRating(p) + ' '; dr.hidden = !(p.ulasan > 0);
+  if (p.ulasan > 0) dr.appendChild(mk('a', { href:'ulasan.html?produk=' + encodeURIComponent(p.nama), target:'_blank', rel:'noopener', textContent:'Lihat ulasan' }));
   const ul = document.getElementById('dList');
   ul.textContent = '';
   barisDetail(p.detail).forEach(t => {
@@ -846,7 +851,7 @@ let widgetId = null;
 let customerToken = '';
 let customerUser = null;
 let produkAktif = null;
-try { customerToken = sessionStorage.getItem('vbr_customer_token') || ''; } catch (e) {}
+try { customerToken = localStorage.getItem('vbr_customer_token') || sessionStorage.getItem('vbr_customer_token') || ''; } catch (e) {}
 
 async function panggilAPI(aksi, data) {
   if (!API_URL) throw new Error('API website belum dikonfigurasi.');
@@ -864,7 +869,10 @@ function segarkanRingkas() {
 function simpanSesiPelanggan(t) {
   customerToken = t || '';
   if (!t) WA_ADMIN = '';
-  try { customerToken ? sessionStorage.setItem('vbr_customer_token', customerToken) : sessionStorage.removeItem('vbr_customer_token'); } catch (e) {}
+  try {
+    if (customerToken) localStorage.setItem('vbr_customer_token', customerToken);
+    else { localStorage.removeItem('vbr_customer_token'); sessionStorage.removeItem('vbr_customer_token'); }
+  } catch (e) {}
   segarkanRingkas();
 }
 function siapkanTombolGoogle(id) {
@@ -1038,6 +1046,7 @@ async function muatAkunPelanggan() {
   }
   try {
     const d = await panggilAPI('customerProfile', { customerToken });
+    if (d.customerToken) simpanSesiPelanggan(d.customerToken);   // perpanjang login
     customerUser = d.user; segarkanRingkas();
     if (d.user.terdaftar) await muatWaAdmin();
     if (d.user.terdaftar) {
@@ -1050,9 +1059,10 @@ async function muatAkunPelanggan() {
       fLengkapi = isiField($('fieldsLengkapi'), { nilai:d.user });
     }
   } catch (e) {
-    simpanSesiPelanggan(''); customerUser = null;
+    const sesiBerakhir = /sesi pelanggan/i.test(e.message);
+    if (sesiBerakhir) { simpanSesiPelanggan(''); customerUser = null; }   // gangguan jaringan tidak menghapus login
     sAkun(e.message, true);
-    tampilAkun('akunMasuk'); siapkanTombolGoogle('googleBtnAkun');
+    if (sesiBerakhir) { tampilAkun('akunMasuk'); siapkanTombolGoogle('googleBtnAkun'); }
   }
 }
 function bacaDurasi(file) {
@@ -1141,20 +1151,34 @@ function gambarPesananPelanggan(daftar) {
       if (o.video) {
         if (o.rating) {
           row.appendChild(mk('small', { textContent:'Rating Anda: ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating) + ' · Terima kasih!' }));
+          if (o.komentar) row.appendChild(mk('small', { textContent:'Ulasan Anda: ' + o.komentar }));
+          row.appendChild(mk('small', { textContent:'Nama di ulasan: ' + (o.namaTampil ? 'ditampilkan' : 'disamarkan') }));
         } else {
-          const bar = mk('div', { className:'bintang' });
+          let pilih = 0;
+          const bar = mk('div', { className:'bintang' }), tombol = [], form = mk('div', {});
+          form.hidden = true;
           bar.appendChild(mk('small', { textContent:'Beri rating:' }));
+          const ta = mk('textarea', { maxLength:300, rows:3, placeholder:'Tulis ulasan (boleh dikosongkan), maks 300 karakter' });
+          const kirim = mk('button', { type:'button', className:'akun-btn', textContent:'Kirim ulasan' });
+          const cekNama = mk('input', { type:'checkbox' });
+          const lblNama = mk('label', { className:'garansi' });
+          lblNama.append(cekNama, document.createTextNode('Tampilkan nama saya di ulasan. Kalau tidak dicentang, nama disamarkan (contoh: M***s).'));
+          form.append(ta, lblNama, kirim);
           for (let n = 1; n <= 5; n++) {
             const b = mk('button', { type:'button', className:'bintang-btn', textContent:'☆', title:n + ' bintang' });
-            b.addEventListener('click', async () => {
-              if (!confirm('Beri ' + n + ' bintang untuk pesanan ' + o.id + '?')) return;
-              sAkun('Mengirim rating…');
-              try { await panggilAPI('beriRating', { customerToken, id:o.id, rating:n }); await muatAkunPelanggan(); sAkun('Terima kasih atas rating Anda.'); }
-              catch (e) { sAkun(e.message, true); }
-            });
-            bar.appendChild(b);
+            b.addEventListener('click', () => { pilih = n; tombol.forEach((x, i) => { x.textContent = i < n ? '★' : '☆'; }); form.hidden = false; });
+            tombol.push(b); bar.appendChild(b);
           }
-          row.appendChild(bar);
+          kirim.addEventListener('click', async () => {
+            if (!pilih) return;
+            kirim.disabled = true; sAkun('Mengirim ulasan…');
+            try {
+              await panggilAPI('beriRating', { customerToken, id:o.id, rating:pilih, komentar:ta.value, tampilNama:cekNama.checked });
+              await muatAkunPelanggan(); segarkanStok();
+              sAkun('Terima kasih atas ulasan Anda.');
+            } catch (e) { sAkun(e.message, true); kirim.disabled = false; }
+          });
+          row.append(bar, form);
         }
         row.appendChild(mk('small', { textContent:'Ada komplain atau klaim garansi? Silakan chat admin.' }));
         if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau menyampaikan komplain / klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin (komplain / klaim garansi)' }));

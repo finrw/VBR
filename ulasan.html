@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ulasan produk · VBR Casing PC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEF1F4;
+    --surface: #FFFFFF;
+    --ink: #16202B;
+    --muted: #5B6877;
+    --line: #D5DCE3;
+    --accent: #1F4FFF;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Figtree", system-ui, sans-serif; background: var(--bg, #eef1f4); color: var(--ink, #151c26); }
+  .bar { background: var(--surface, #fff); border-bottom: 1px solid var(--line, #dfe3e8); }
+  .bar-in { max-width: 720px; margin: 0 auto; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .bar a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
+  .bar b { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; }
+  main { max-width: 720px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: 1.5rem; margin: 0 0 4px; }
+  .ringkas { color: #B26A00; font-weight: 600; margin: 0 0 16px; }
+  .kartu { background: var(--surface, #fff); border: 1px solid var(--line, #dfe3e8); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+  .kartu .atas { display: flex; justify-content: space-between; gap: 8px; font-size: .9rem; }
+  .kartu .bintang { color: #F5A623; letter-spacing: 1px; }
+  .kartu p { margin: 8px 0 0; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .kartu small { color: var(--muted, #5c6673); }
+  .kosong { color: var(--muted, #5c6673); }
+</style>
+</head>
+<body>
+<div class="bar"><div class="bar-in"><a href="./">&larr; Kembali ke katalog</a><b>Ulasan produk</b></div></div>
+<main>
+  <h1 id="judul">Ulasan</h1>
+  <p class="ringkas" id="ringkas"></p>
+  <div id="daftar"><p class="kosong">Memuat ulasan…</p></div>
+</main>
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
+const nama = new URLSearchParams(location.search).get('produk') || '';
+const el = id => document.getElementById(id);
+function pesan(t) { el('daftar').textContent = ''; const p = document.createElement('p'); p.className = 'kosong'; p.textContent = t; el('daftar').appendChild(p); }
+(async function () {
+  if (!nama) { pesan('Produk tidak dipilih. Buka halaman ini dari katalog.'); return; }
+  el('judul').textContent = nama;
+  document.title = 'Ulasan ' + nama + ' · VBR Casing PC';
+  try {
+    const res = await fetch(API_URL + '?aksi=ulasan&produk=' + encodeURIComponent(nama), { cache: 'no-store' });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'Gagal memuat ulasan');
+    el('ringkas').textContent = d.jumlah ? '★ ' + Number(d.rata).toFixed(1) + ' · ' + d.jumlah + ' ulasan' : '';
+    if (!d.ulasan.length) { pesan('Belum ada ulasan untuk produk ini.'); return; }
+    el('daftar').textContent = '';
+    d.ulasan.forEach(u => {
+      const k = document.createElement('div'); k.className = 'kartu';
+      const atas = document.createElement('div'); atas.className = 'atas';
+      const kiri = document.createElement('span');
+      const b = document.createElement('b'); b.textContent = u.nama + ' ';
+      const bt = document.createElement('span'); bt.className = 'bintang'; bt.textContent = '\u2605'.repeat(u.bintang) + '\u2606'.repeat(5 - u.bintang);
+      kiri.append(b, bt);
+      const w = document.createElement('small'); w.textContent = u.waktu;
+      atas.append(kiri, w); k.appendChild(atas);
+      if (u.komentar) { const p = document.createElement('p'); p.textContent = u.komentar; k.appendChild(p); }
+      el('daftar').appendChild(k);
+    });
+  } catch (e) { pesan('Ulasan belum bisa dimuat. Coba lagi sebentar.'); }
+})();
+</script>
+</body>
+</html>

@@ -300,6 +300,7 @@ function gambarDashboard(d) {
     if (o.lokasi) { i.append(' · '); const m = document.createElement('a'); m.href = 'https://www.google.com/maps?q=' + o.lokasi; m.target = '_blank'; m.rel = 'noopener'; m.textContent = 'Lihat peta'; i.appendChild(m); }
     if (o.video) { i.append(' · '); const v = document.createElement('a'); v.href = o.video; v.target = '_blank'; v.rel = 'noopener'; v.textContent = 'Video unboxing'; i.appendChild(v); }
     if (o.rating) i.append(' · Rating ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating));
+    if (o.ulasan) i.append(' · Ulasan: ' + o.ulasan + (o.sembunyi ? ' (disembunyikan)' : ''));
     const sel = document.createElement('select');
     const daftar = STATUS.slice();
     if (!daftar.some(t => t[0] === o.status)) daftar.unshift([o.status, o.status === 'Selesai' ? 'Selesai (konfirmasi pembeli)' : o.status]);
@@ -310,6 +311,13 @@ function gambarDashboard(d) {
     };
     if (o.status === 'Selesai' || o.status === 'Dibatalkan') sel.disabled = true;
     r.append(a, i, sel);
+    if (o.ulasan) {
+      const ub = document.createElement('button');
+      ub.type = 'button'; ub.textContent = o.sembunyi ? 'Tampilkan ulasan' : 'Sembunyikan ulasan';
+      ub.style.cssText = 'margin-left:8px;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font:inherit';
+      ub.onclick = async () => { try { await panggil('setUlasanSembunyi', { id: o.id, sembunyi: !o.sembunyi }); muatDashboard(); } catch (err) { alert(err.message); } };
+      r.appendChild(ub);
+    }
     if (o.status !== 'Dibatalkan' && o.status !== 'Selesai') {
       const og = document.createElement('input');
       og.type = 'number'; og.min = '0'; og.step = '1000'; og.placeholder = 'Ongkir (Rp)'; og.value = o.ongkir === null ? '' : o.ongkir;
