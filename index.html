@@ -832,7 +832,7 @@ function bukaDetail(p) {
   let dr = document.getElementById('dRating');
   if (!dr) { dr = document.createElement('p'); dr.id = 'dRating'; dr.className = 'rating-kartu'; document.getElementById('dNama').after(dr); }
   dr.textContent = teksRating(p) + ' '; dr.hidden = !(p.ulasan > 0);
-  if (p.ulasan > 0) dr.appendChild(mk('a', { className:'btn-ulasan-media', href:'ulasan.html?produk=' + encodeURIComponent(p.nama), target:'_blank', rel:'noopener', textContent:'Lihat ulasan, foto & video' }));
+  if (p.ulasan > 0) dr.appendChild(mk('a', { className:'btn-ulasan-media', href:'ulasan.html?produk=' + encodeURIComponent(p.nama), textContent:'Lihat ulasan, foto & video' }));
   const ul = document.getElementById('dList');
   ul.textContent = '';
   barisDetail(p.detail).forEach(t => {
