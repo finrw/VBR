@@ -39,8 +39,8 @@
   h2 { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: 1.1rem; margin: 18px 0 8px; }
   .lb { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px; z-index: 50; }
   .lb[hidden] { display: none; }
-  .lb img, .lb video { max-width: 100%; max-height: 62vh; border: 0; border-radius: 10px; background: #000; }
-  .lb video { width: min(88vw, 640px); height: min(42vh, 360px); aspect-ratio: 16 / 9; object-fit: contain; }
+  .lb img, .lb video, .lb iframe { max-width: 100%; max-height: 62vh; border: 0; border-radius: 10px; background: #000; }
+  .lb video, .lb iframe { width: min(88vw, 640px); height: min(42vh, 360px); aspect-ratio: 16 / 9; object-fit: contain; }
   .lb-nav { position: absolute; left: 12px; right: 12px; top: 50%; transform: translateY(-50%); display: flex; justify-content: space-between; pointer-events: none; }
   .lb-nav button { position: static; width: 44px; height: 44px; padding: 0 0 4px; border-radius: 50%; background: rgba(255,255,255,.92); color: #16202B; font-size: 1.8rem; line-height: 1; pointer-events: auto; }
   .lb-nav button:disabled { opacity: .35; cursor: default; }
@@ -72,12 +72,11 @@ function tampilkanMedia() {
   if (!item) return;
   const isi = el('lbIsi'); isi.textContent = '';
   if (item.tipe === 'video') {
-    const v = document.createElement('video');
-    v.src = 'https://drive.google.com/uc?export=download&id=' + item.id;
-    v.controls = true;
-    v.autoplay = true;
-    v.playsInline = true;
-    isi.appendChild(v);
+    const ifr = document.createElement('iframe');
+    ifr.src = 'https://drive.google.com/file/d/' + item.id + '/preview';
+    ifr.allow = 'autoplay';
+    ifr.allowFullscreen = true;
+    isi.appendChild(ifr);
   } else {
     const im = document.createElement('img');
     im.src = 'https://drive.google.com/thumbnail?id=' + item.id + '&sz=w1600'; im.alt = 'Foto pembeli';
