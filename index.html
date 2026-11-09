@@ -852,6 +852,7 @@ const $ = id => document.getElementById(id);
 let widgetId = null;
 let customerToken = '';
 let customerUser = null;
+let akunCache = null, tandaProfil = '', tandaLengkapi = '', tandaPesanan = '';
 let produkAktif = null;
 try { customerToken = localStorage.getItem('vbr_customer_token') || sessionStorage.getItem('vbr_customer_token') || ''; } catch (e) {}
 
@@ -870,7 +871,7 @@ function segarkanRingkas() {
 }
 function simpanSesiPelanggan(t) {
   customerToken = t || '';
-  if (!t) WA_ADMIN = '';
+  if (!t) { WA_ADMIN = ''; akunCache = null; tandaProfil = tandaLengkapi = tandaPesanan = ''; fProfil = fLengkapi = null; }
   try {
     if (customerToken) localStorage.setItem('vbr_customer_token', customerToken);
     else { localStorage.removeItem('vbr_customer_token'); sessionStorage.removeItem('vbr_customer_token'); }
@@ -1040,6 +1041,23 @@ async function muatWaAdmin() {
   try { const r = await panggilAPI('waAdmin', { customerToken }); WA_ADMIN = String(r.wa || ''); } catch (e) {}
 }
 
+async // Gambar isi akun. Bagian yang datanya tidak berubah tidak digambar ulang (lebih cepat, dan isian/pratinjau tidak hilang).
+function gambarAkun(d) {
+  customerUser = d.user; segarkanRingkas();
+  if (d.user.terdaftar) {
+    tampilAkun('akunProfil');
+    $('akunEmail').textContent = 'Masuk sebagai ' + d.user.email;
+    const tp = JSON.stringify(d.user);
+    if (tp !== tandaProfil || !fProfil) { fProfil = isiField($('fieldsProfil'), { alamat:true, nilai:d.user }); tandaProfil = tp; }
+    const tk = JSON.stringify(d.pesanan || []);
+    if (tk !== tandaPesanan) { gambarPesananPelanggan(d.pesanan || []); tandaPesanan = tk; }
+  } else {
+    tampilAkun('akunLengkapi');
+    const tl = JSON.stringify(d.user);
+    if (tl !== tandaLengkapi || !fLengkapi) { fLengkapi = isiField($('fieldsLengkapi'), { nilai:d.user }); tandaLengkapi = tl; }
+  }
+}
+
 async function muatAkunPelanggan() {
   if (!customerToken) {
     customerUser = null; segarkanRingkas();
@@ -1047,19 +1065,11 @@ async function muatAkunPelanggan() {
     return;
   }
   try {
-    const d = await panggilAPI('customerProfile', { customerToken });
+    const [d] = await Promise.all([panggilAPI('customerProfile', { customerToken }), muatWaAdmin()]);
     if (d.customerToken) simpanSesiPelanggan(d.customerToken);   // perpanjang login
-    customerUser = d.user; segarkanRingkas();
-    if (d.user.terdaftar) await muatWaAdmin();
-    if (d.user.terdaftar) {
-      tampilAkun('akunProfil');
-      $('akunEmail').textContent = 'Masuk sebagai ' + d.user.email;
-      fProfil = isiField($('fieldsProfil'), { alamat:true, nilai:d.user });
-      gambarPesananPelanggan(d.pesanan || []);
-    } else {
-      tampilAkun('akunLengkapi');
-      fLengkapi = isiField($('fieldsLengkapi'), { nilai:d.user });
-    }
+    if (d.user.terdaftar && !WA_ADMIN) await muatWaAdmin();
+    akunCache = d;
+    gambarAkun(d);
   } catch (e) {
     const sesiBerakhir = /sesi pelanggan/i.test(e.message);
     if (sesiBerakhir) { simpanSesiPelanggan(''); customerUser = null; }   // gangguan jaringan tidak menghapus login
@@ -1074,7 +1084,7 @@ function bacaDurasi(file) {
     v.preload = 'metadata';
     v.onloadedmetadata = () => selesai(isFinite(v.duration) ? v.duration : 0);
     v.onerror = () => selesai(0);
-    setTimeout(() => selesai(0), 8000);
+    setTimeout(() => selesai(0), 3000);
     v.src = u;
   });
 }
@@ -1082,7 +1092,7 @@ function kirimPotongan(url, blob, rentang) {
   return new Promise((ok, gagal) => {
     const x = new XMLHttpRequest();
     x.open('PUT', url);
-    x.timeout = 90000;
+    x.timeout = 40000;
     x.setRequestHeader('Content-Range', rentang);
     x.onload = () => ok({ status: x.status, teks: x.responseText, range: x.getResponseHeader('Range') || '' });
     x.onerror = () => gagal(new Error('Koneksi terganggu'));
@@ -1091,43 +1101,57 @@ function kirimPotongan(url, blob, rentang) {
   });
 }
 const tunggu = ms => new Promise(r => setTimeout(r, ms));
+// Unggah ke Drive yang tahan sinyal buruk: potongan kecil, coba ulang cepat, dan kalau potongan pertama gagal
+// otomatis meminta sesi unggah baru (sama dengan menekan tombol lagi, tapi otomatis).
+async function unggahTahan(mintaUrl, blob, info, label, sesi) {
+  const POTONG = 2 * 1024 * 1024;   // kelipatan 256 KB
+  for (let putaran = 1; putaran <= 4; putaran++) {
+    if (!sesi.url) { info.textContent = 'Menyiapkan unggahan…'; sesi.url = await mintaUrl(); sesi.mulai = 0; sesi.hasil = null; }
+    let ulangSesi = false;
+    while (!sesi.hasil && sesi.mulai < blob.size) {
+      const awal = sesi.mulai, akhir = Math.min(awal + POTONG, blob.size);
+      let r = null;
+      for (let coba = 1; coba <= 3 && !r; coba++) {
+        try {
+          const h = await kirimPotongan(sesi.url, blob.slice(awal, akhir), 'bytes ' + awal + '-' + (akhir - 1) + '/' + blob.size);
+          if (h.status >= 500) throw new Error('Server sibuk');
+          r = h;
+        } catch (e) {
+          if (coba < 3) { info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/2)…'; await tunggu(800 * coba); }
+        }
+      }
+      if (!r) {
+        if (awal === 0) { sesi.url = null; ulangSesi = true; break; }   // belum ada yang terkirim: mulai sesi baru otomatis
+        throw new Error(label + ' terhenti di ' + Math.round(awal / blob.size * 100) + '%. Tekan tombol lagi untuk melanjutkan.');
+      }
+      if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); sesi.mulai = m ? Number(m[1]) + 1 : akhir; }
+      else if (r.status === 200 || r.status === 201) { sesi.hasil = JSON.parse(r.teks); sesi.mulai = blob.size; }
+      else if (r.status === 404 || r.status === 410) { sesi.url = null; ulangSesi = true; break; }
+      else throw new Error(label + ' ditolak (kode ' + r.status + ').');
+      info.textContent = 'Mengunggah… ' + Math.round(Math.min(sesi.mulai, blob.size) / blob.size * 100) + '%';
+    }
+    if (sesi.hasil || !ulangSesi) break;
+    info.textContent = 'Koneksi bermasalah, memulai ulang unggahan (' + putaran + '/3)…';
+    await tunggu(1000);
+  }
+  if (!sesi.hasil && sesi.url) {
+    const r = await kirimPotongan(sesi.url, new Blob([]), 'bytes */' + blob.size).catch(() => null);
+    if (r && (r.status === 200 || r.status === 201)) sesi.hasil = JSON.parse(r.teks);
+  }
+  if (!sesi.hasil || !sesi.hasil.id) throw new Error(label + ' gagal terunggah. Periksa sinyal lalu coba lagi.');
+  return sesi.hasil.id;
+}
+
 async function unggahVideo(o, file, info, sesi) {
   if (!/^video\//.test(file.type)) throw new Error('File harus berupa video.');
   if (file.size > 300 * 1024 * 1024) throw new Error('Ukuran video maksimal 300 MB.');
   if (sesi.dur === undefined) sesi.dur = await bacaDurasi(file);
   if (sesi.dur > 90.5) throw new Error('Durasi video maksimal 1 menit 30 detik (video Anda ' + Math.round(sesi.dur) + ' detik).');
-  if (!sesi.url) {
-    const m = await panggilAPI('garansiMulai', { customerToken, id:o.id, size:file.size, mime:file.type, durasi:Math.round(sesi.dur) });
-    sesi.url = m.uploadUrl; sesi.mulai = 0; sesi.hasil = null;
-  }
-  const POTONG = 2 * 1024 * 1024;   // kelipatan 256 KB; potongan kecil + coba ulang otomatis agar tahan sinyal naik-turun
-  while (!sesi.hasil && sesi.mulai < file.size) {
-    const awal = sesi.mulai, akhir = Math.min(awal + POTONG, file.size);
-    let r = null;
-    for (let coba = 1; coba <= 6 && !r; coba++) {
-      try {
-        const h = await kirimPotongan(sesi.url, file.slice(awal, akhir), 'bytes ' + awal + '-' + (akhir - 1) + '/' + file.size);
-        if (h.status >= 500) throw new Error('Server sibuk');
-        r = h;
-      } catch (e) {
-        if (coba === 6) throw new Error('Unggah terhenti di ' + Math.round(awal / file.size * 100) + '% karena koneksi terganggu.');
-        info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/5)…';
-        await tunggu(1000 * coba);
-      }
-    }
-    if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); sesi.mulai = m ? Number(m[1]) + 1 : akhir; }
-    else if (r.status === 200 || r.status === 201) { sesi.hasil = JSON.parse(r.teks); sesi.mulai = file.size; }
-    else if (r.status === 404 || r.status === 410) { sesi.url = null; throw new Error('Sesi unggah berakhir.'); }
-    else throw new Error('Unggah ditolak (kode ' + r.status + ').');
-    info.textContent = 'Mengunggah… ' + Math.round(Math.min(sesi.mulai, file.size) / file.size * 100) + '%';
-  }
-  if (!sesi.hasil) {
-    const r = await kirimPotongan(sesi.url, new Blob([]), 'bytes */' + file.size);
-    if (r.status === 200 || r.status === 201) sesi.hasil = JSON.parse(r.teks);
-    else throw new Error('Unggah belum lengkap.');
-  }
+  const fileId = await unggahTahan(
+    async () => (await panggilAPI('garansiMulai', { customerToken, id:o.id, size:file.size, mime:file.type, durasi:Math.round(sesi.dur) })).uploadUrl,
+    file, info, 'Video', sesi);
   info.textContent = 'Menyimpan…';
-  await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:sesi.hasil.id, durasi:Math.round(sesi.dur) });
+  await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:fileId, durasi:Math.round(sesi.dur) });
 }
 
 function kecilkanFoto(file) {
@@ -1145,30 +1169,6 @@ function kecilkanFoto(file) {
     img.src = u;
   });
 }
-async function kirimBerkasDrive(url, blob, info, label) {
-  const POTONG = 1024 * 1024;
-  let mulai = 0, hasil = null;
-  while (!hasil) {
-    const akhir = Math.min(mulai + POTONG, blob.size);
-    let r = null;
-    for (let coba = 1; coba <= 6 && !r; coba++) {
-      try {
-        const h = await kirimPotongan(url, blob.slice(mulai, akhir), 'bytes ' + mulai + '-' + (akhir - 1) + '/' + blob.size);
-        if (h.status >= 500) throw new Error('Server sibuk');
-        r = h;
-      } catch (e) {
-        if (coba === 6) throw new Error(label + ' gagal terunggah karena koneksi terganggu.');
-        info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/5)…';
-        await tunggu(1000 * coba);
-      }
-    }
-    if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); mulai = m ? Number(m[1]) + 1 : akhir; }
-    else if (r.status === 200 || r.status === 201) hasil = JSON.parse(r.teks);
-    else throw new Error(label + ' ditolak (kode ' + r.status + ').');
-  }
-  return hasil.id;
-}
-
 function ringkasBayar(o) {
   if (o.status === 'Dibatalkan') return rp(o.total);
   if (o.ongkir === null || o.ongkir === undefined) return rp(o.total) + ' · Ongkir: menunggu diisi admin';
@@ -1261,8 +1261,9 @@ function gambarPesananPelanggan(daftar) {
               for (let i = 0; i < berkas.length; i++) {
                 st2.textContent = 'Mengunggah foto ' + (i + 1) + ' dari ' + berkas.length + '…';
                 const kecil = await kecilkanFoto(berkas[i]);
-                const m = await panggilAPI('ulasanMulai', { customerToken, id:o.id, no:i + 1, size:kecil.size, mime:'image/jpeg' });
-                fotoId.push(await kirimBerkasDrive(m.uploadUrl, kecil, st2, 'Foto ' + (i + 1)));
+                fotoId.push(await unggahTahan(
+                  async () => (await panggilAPI('ulasanMulai', { customerToken, id:o.id, no:i + 1, size:kecil.size, mime:'image/jpeg' })).uploadUrl,
+                  kecil, st2, 'Foto ' + (i + 1), {}));
               }
               await panggilAPI('beriRating', { customerToken, id:o.id, rating:pilih, komentar:ta.value, tampilNama:cekNama.checked, foto:fotoId, publik:true });
               await muatAkunPelanggan(); segarkanStok();
@@ -1310,6 +1311,11 @@ function gambarPesananPelanggan(daftar) {
 $('btnAkun').addEventListener('click', async () => {
   sAkun('');
   $('akunDlg').showModal();
+  if (customerToken && akunCache) {   // tampil seketika dari data terakhir, lalu disegarkan di belakang layar
+    gambarAkun(akunCache);
+    muatAkunPelanggan();
+    return;
+  }
   if (customerToken) { BAGIAN_AKUN.forEach(b => { $(b).hidden = true; }); sAkun('Memuat akun…'); }
   await muatAkunPelanggan();
   if ($('akunStatus').textContent === 'Memuat akun…') sAkun('');
