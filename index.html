@@ -1092,7 +1092,9 @@ function kirimPotongan(url, blob, rentang) {
   return new Promise((ok, gagal) => {
     const x = new XMLHttpRequest();
     x.open('PUT', url);
-    x.timeout = 40000;
+    // Potongan lebih besar membutuhkan batas waktu sedikit lebih longgar,
+    // terutama saat pelanggan memakai jaringan seluler yang tidak stabil.
+    x.timeout = 75000;
     x.setRequestHeader('Content-Range', rentang);
     x.onload = () => ok({ status: x.status, teks: x.responseText, range: x.getResponseHeader('Range') || '' });
     x.onerror = () => gagal(new Error('Koneksi terganggu'));
@@ -1101,10 +1103,14 @@ function kirimPotongan(url, blob, rentang) {
   });
 }
 const tunggu = ms => new Promise(r => setTimeout(r, ms));
-// Unggah ke Drive yang tahan sinyal buruk: potongan kecil, coba ulang cepat, dan kalau potongan pertama gagal
+// Unggah ke Drive yang tahan sinyal buruk: potongan besar mengurangi jumlah request,
+// coba ulang cepat, dan kalau potongan pertama gagal otomatis meminta sesi baru.
 // otomatis meminta sesi unggah baru (sama dengan menekan tombol lagi, tapi otomatis).
 async function unggahTahan(mintaUrl, blob, info, label, sesi) {
-  const POTONG = 2 * 1024 * 1024;   // kelipatan 256 KB
+  // 8 MB tetap kelipatan 256 KB dan memangkas jumlah request sekitar 4x
+  // dibanding konfigurasi lama 2 MB. Foto kecil tetap dikirim sebagai satu bagian.
+  const POTONG = Math.min(8 * 1024 * 1024, blob.size);
+  const mulaiWaktu = Date.now();
   for (let putaran = 1; putaran <= 4; putaran++) {
     if (!sesi.url) { info.textContent = 'Menyiapkan unggahan…'; sesi.url = await mintaUrl(); sesi.mulai = 0; sesi.hasil = null; }
     let ulangSesi = false;
@@ -1128,7 +1134,13 @@ async function unggahTahan(mintaUrl, blob, info, label, sesi) {
       else if (r.status === 200 || r.status === 201) { sesi.hasil = JSON.parse(r.teks); sesi.mulai = blob.size; }
       else if (r.status === 404 || r.status === 410) { sesi.url = null; ulangSesi = true; break; }
       else throw new Error(label + ' ditolak (kode ' + r.status + ').');
-      info.textContent = 'Mengunggah… ' + Math.round(Math.min(sesi.mulai, blob.size) / blob.size * 100) + '%';
+      const terkirim = Math.min(sesi.mulai, blob.size);
+      const persen = Math.round(terkirim / blob.size * 100);
+      const detik = Math.max(1, (Date.now() - mulaiWaktu) / 1000);
+      const kecepatan = terkirim / detik;
+      const sisa = kecepatan > 0 ? Math.ceil((blob.size - terkirim) / kecepatan) : 0;
+      const ukuran = n => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
+      info.textContent = 'Mengunggah… ' + persen + '% (' + ukuran(kecepatan) + '/dtk' + (sisa ? ', sisa ±' + (sisa >= 60 ? Math.ceil(sisa / 60) + ' mnt' : sisa + ' dtk') : '') + ')';
     }
     if (sesi.hasil || !ulangSesi) break;
     info.textContent = 'Koneksi bermasalah, memulai ulang unggahan (' + putaran + '/3)…';

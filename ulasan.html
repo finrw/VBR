@@ -39,6 +39,10 @@
   .lb[hidden] { display: none; }
   .lb img, .lb iframe { max-width: 100%; max-height: 70vh; border: 0; border-radius: 10px; background: #000; }
   .lb iframe { width: min(92vw, 640px); height: 60vh; }
+  .lb-nav { position: absolute; left: 12px; right: 12px; top: 50%; transform: translateY(-50%); display: flex; justify-content: space-between; pointer-events: none; }
+  .lb-nav button { position: static; width: 44px; height: 44px; padding: 0 0 4px; border-radius: 50%; background: rgba(255,255,255,.92); color: #16202B; font-size: 1.8rem; line-height: 1; pointer-events: auto; }
+  .lb-nav button:disabled { opacity: .35; cursor: default; }
+  .lb .nomor { color: #fff; margin-top: 8px; font-size: .85rem; }
   .lb .cap { color: #fff; margin-top: 12px; max-width: 640px; text-align: center; font-size: .92rem; line-height: 1.4; }
   .lb button { position: absolute; top: 12px; right: 12px; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; }
   .kosong { color: var(--muted, #5c6673); }
@@ -53,14 +57,17 @@
   <h2>Ulasan pembeli</h2>
   <div id="daftar"><p class="kosong">Memuat ulasan…</p></div>
 </main>
-<div class="lb" id="lb" hidden><button type="button" id="lbTutup">Tutup</button><div id="lbIsi"></div><div class="cap" id="lbCap"></div></div>
+<div class="lb" id="lb" hidden><button type="button" id="lbTutup">Tutup</button><div class="lb-nav"><button type="button" id="lbSebelum" aria-label="Media sebelumnya">‹</button><button type="button" id="lbSesudah" aria-label="Media berikutnya">›</button></div><div id="lbIsi"></div><div class="nomor" id="lbNomor"></div><div class="cap" id="lbCap"></div></div>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
 const nama = new URLSearchParams(location.search).get('produk') || '';
 const el = id => document.getElementById(id);
 function pesan(t) { el('daftar').textContent = ''; const p = document.createElement('p'); p.className = 'kosong'; p.textContent = t; el('daftar').appendChild(p); }
 const idOk = x => /^[A-Za-z0-9_-]{10,80}$/.test(String(x));
-function bukaLb(item) {
+let mediaGaleri = [], mediaAktif = 0, sentuhX = 0;
+function tampilkanMedia() {
+  const item = mediaGaleri[mediaAktif];
+  if (!item) return;
   const isi = el('lbIsi'); isi.textContent = '';
   if (item.tipe === 'video') {
     const f = document.createElement('iframe');
@@ -72,12 +79,29 @@ function bukaLb(item) {
     isi.appendChild(im);
   }
   el('lbCap').textContent = item.nama + ' · ' + '\u2605'.repeat(item.bintang) + (item.komentar ? ' · ' + item.komentar : '');
+  el('lbNomor').textContent = (mediaAktif + 1) + ' / ' + mediaGaleri.length + (item.tipe === 'video' ? ' · Video' : ' · Foto');
+  el('lbSebelum').disabled = mediaAktif === 0;
+  el('lbSesudah').disabled = mediaAktif === mediaGaleri.length - 1;
   el('lb').hidden = false;
+}
+function bukaLb(indeks) { mediaAktif = indeks; tampilkanMedia(); }
+function geserMedia(arah) {
+  const tujuan = mediaAktif + arah;
+  if (tujuan < 0 || tujuan >= mediaGaleri.length) return;
+  mediaAktif = tujuan;
+  tampilkanMedia();
 }
 function tutupLb() { el('lb').hidden = true; el('lbIsi').textContent = ''; }
 el('lbTutup').addEventListener('click', tutupLb);
+el('lbSebelum').addEventListener('click', () => geserMedia(-1));
+el('lbSesudah').addEventListener('click', () => geserMedia(1));
 el('lb').addEventListener('click', e => { if (e.target === el('lb')) tutupLb(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') tutupLb(); });
+el('lb').addEventListener('touchstart', e => { sentuhX = e.changedTouches[0].clientX; }, { passive: true });
+el('lb').addEventListener('touchend', e => {
+  const jarak = e.changedTouches[0].clientX - sentuhX;
+  if (Math.abs(jarak) > 50) geserMedia(jarak < 0 ? 1 : -1);
+}, { passive: true });
 function buatGaleri(ulasan) {
   const item = [];
   ulasan.forEach(u => {
@@ -86,13 +110,14 @@ function buatGaleri(ulasan) {
   });
   if (!item.length) return;
   el('boxGaleri').hidden = false;
-  item.slice(0, 60).forEach(it => {
+  mediaGaleri = item.slice(0, 60);
+  mediaGaleri.forEach((it, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'gitem';
     const im = document.createElement('img'); im.loading = 'lazy'; im.alt = it.tipe === 'video' ? 'Video pembeli' : 'Foto pembeli';
     im.src = 'https://drive.google.com/thumbnail?id=' + it.id + '&sz=w400';
     b.appendChild(im);
     if (it.tipe === 'video') { const p = document.createElement('span'); p.className = 'main'; p.textContent = '\u25B6'; b.appendChild(p); }
-    b.addEventListener('click', () => bukaLb(it));
+    b.addEventListener('click', () => bukaLb(i));
     el('galeri').appendChild(b);
   });
 }
