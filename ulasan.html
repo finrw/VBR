@@ -37,18 +37,16 @@
   .gitem img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .gitem .main { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 2rem; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
   h2 { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: 1.1rem; margin: 18px 0 8px; }
-  .lb { position: fixed; inset: 0; background: rgba(0,0,0,.95); display: flex; flex-direction: column; align-items: center; padding: 56px 6px 8px; z-index: 50; }
+  .lb { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px; z-index: 50; }
   .lb[hidden] { display: none; }
-  /* Area media memenuhi layar; video tanpa bingkai/sudut membulat. */
-  #lbIsi { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
-  .lb img { max-width: 100%; max-height: 100%; object-fit: contain; border: 0; }
-  .lb iframe { width: 100%; max-width: 720px; height: 100%; border: 0; border-radius: 0; background: #000; }
-  .lb-bar { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 8px; }
-  .lb-bar button { position: static; width: 44px; height: 44px; padding: 0 0 4px; border-radius: 50%; background: rgba(255,255,255,.92); color: #16202B; font-size: 1.8rem; line-height: 1; }
-  .lb-bar button:disabled { opacity: .35; cursor: default; }
-  .lb .nomor { color: #fff; font-size: .85rem; min-width: 80px; text-align: center; }
-  .lb .cap { color: #fff; margin-top: 6px; max-width: 640px; text-align: center; font-size: .88rem; line-height: 1.35; max-height: 4.2em; overflow: auto; }
-  #lbTutup { position: absolute; top: 8px; right: 8px; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; background: rgba(255,255,255,.92); }
+  .lb img, .lb video { max-width: 100%; max-height: 62vh; border: 0; border-radius: 10px; background: #000; }
+  .lb video { width: min(88vw, 640px); height: min(42vh, 360px); aspect-ratio: 16 / 9; object-fit: contain; }
+  .lb-nav { position: absolute; left: 12px; right: 12px; top: 50%; transform: translateY(-50%); display: flex; justify-content: space-between; pointer-events: none; }
+  .lb-nav button { position: static; width: 44px; height: 44px; padding: 0 0 4px; border-radius: 50%; background: rgba(255,255,255,.92); color: #16202B; font-size: 1.8rem; line-height: 1; pointer-events: auto; }
+  .lb-nav button:disabled { opacity: .35; cursor: default; }
+  .lb .nomor { color: #fff; margin-top: 8px; font-size: .85rem; }
+  .lb .cap { color: #fff; margin-top: 12px; max-width: 640px; text-align: center; font-size: .92rem; line-height: 1.4; }
+  .lb button { position: absolute; top: 12px; right: 12px; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; }
   .kosong { color: var(--muted, #5c6673); }
 </style>
 </head>
@@ -61,7 +59,7 @@
   <h2>Ulasan pembeli</h2>
   <div id="daftar"><p class="kosong">Memuat ulasan…</p></div>
 </main>
-<div class="lb" id="lb" hidden><button type="button" id="lbTutup">Tutup</button><div id="lbIsi"></div><div class="lb-bar"><button type="button" id="lbSebelum" aria-label="Media sebelumnya">‹</button><div class="nomor" id="lbNomor"></div><button type="button" id="lbSesudah" aria-label="Media berikutnya">›</button></div><div class="cap" id="lbCap"></div></div>
+<div class="lb" id="lb" hidden><button type="button" id="lbTutup">Tutup</button><div class="lb-nav"><button type="button" id="lbSebelum" aria-label="Media sebelumnya">‹</button><button type="button" id="lbSesudah" aria-label="Media berikutnya">›</button></div><div id="lbIsi"></div><div class="nomor" id="lbNomor"></div><div class="cap" id="lbCap"></div></div>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
 const nama = new URLSearchParams(location.search).get('produk') || '';
@@ -74,9 +72,12 @@ function tampilkanMedia() {
   if (!item) return;
   const isi = el('lbIsi'); isi.textContent = '';
   if (item.tipe === 'video') {
-    const f = document.createElement('iframe');
-    f.src = 'https://drive.google.com/file/d/' + item.id + '/preview'; f.allow = 'autoplay'; f.allowFullscreen = true;
-    isi.appendChild(f);
+    const v = document.createElement('video');
+    v.src = 'https://drive.google.com/uc?export=download&id=' + item.id;
+    v.controls = true;
+    v.autoplay = true;
+    v.playsInline = true;
+    isi.appendChild(v);
   } else {
     const im = document.createElement('img');
     im.src = 'https://drive.google.com/thumbnail?id=' + item.id + '&sz=w1600'; im.alt = 'Foto pembeli';
