@@ -1041,7 +1041,7 @@ async function muatWaAdmin() {
   try { const r = await panggilAPI('waAdmin', { customerToken }); WA_ADMIN = String(r.wa || ''); } catch (e) {}
 }
 
-async // Gambar isi akun. Bagian yang datanya tidak berubah tidak digambar ulang (lebih cepat, dan isian/pratinjau tidak hilang).
+// Gambar isi akun. Bagian yang datanya tidak berubah tidak digambar ulang (lebih cepat, dan isian/pratinjau tidak hilang).
 function gambarAkun(d) {
   customerUser = d.user; segarkanRingkas();
   if (d.user.terdaftar) {
