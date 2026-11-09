@@ -267,9 +267,11 @@
   .akun-order .bintang { display:flex; align-items:center; flex-wrap:wrap; gap:2px; margin-top:6px; }
   .akun-order .bintang-btn { width:auto; border:none; background:transparent; color:#F5A623; font-size:1.9rem; line-height:1; padding:2px 6px; cursor:pointer; }
   .rating-kartu { margin:3px 0 0; color:#B26A00; font-weight:600; font-size:.88rem; }
+  .btn-ulasan-media { display:inline-flex; align-items:center; justify-content:center; min-height:38px; margin:10px 0 2px 0; padding:8px 13px; border:1.5px solid var(--accent); border-radius:10px; background:#fff; color:var(--accent); font:inherit; font-weight:600; line-height:1.2; text-decoration:none; }
+  .btn-ulasan-media:hover { background:#EEF3FF; }
+  .btn-ulasan-media:active { transform:translateY(1px); }
   .dua-kolom { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .akun-order textarea { width:100%; box-sizing:border-box; margin-top:6px; padding:10px; border:1.5px solid var(--line); border-radius:10px; font:inherit; }
-  .rating-kartu a { margin-left:6px; font-weight:500; }
   .akun-order label.garansi { display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-size:.86rem; line-height:1.4; }
   .akun-order label.garansi input { width:20px; height:20px; margin:2px 0 0; padding:0; flex:none; }
   .catatan-harga { display:block; color:var(--muted); font-size:.85rem; margin-top:2px; }
@@ -280,12 +282,12 @@
   .akun-status.salah { color:#C62828; }
   .akun-keluar { margin:12px 8px 0 0; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; font:inherit; cursor:pointer; }
 
-  /* ---- Header: menu strip 3 + judul tengah ---- */
+  /* ---- Header: tombol akun + judul tengah ---- */
   .topbar { position: sticky; top: 0; z-index: 50; background: var(--surface); border-bottom: 1px solid var(--line); }
-  .topbar-in { max-width: 1120px; margin: 0 auto; padding: 0 8px; height: 56px; display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; }
+  .topbar-in { max-width: 1120px; margin: 0 auto; padding: 0 8px; height: 56px; display: grid; grid-template-columns: auto 1fr 48px; align-items: center; }
   .topbar-judul { text-align: center; font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: clamp(1.1rem, 4.5vw, 1.5rem); letter-spacing: .02em; }
-  .btn-menu { width: 44px; height: 44px; padding: 0; border: none; border-radius: 10px; background: transparent; display: grid; place-content: center; gap: 5px; cursor: pointer; }
-  .btn-menu span { display: block; width: 22px; height: 2.5px; border-radius: 2px; background: var(--ink); }
+  .btn-menu { min-width:44px; height:44px; padding:6px 9px; border:1px solid var(--line); border-radius:10px; background:transparent; color:var(--ink); display:inline-flex; align-items:center; justify-content:center; gap:7px; font:inherit; font-size:.78rem; font-weight:600; white-space:nowrap; cursor:pointer; }
+  .btn-menu svg { width:21px; height:21px; flex:none; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .btn-menu:hover { background: var(--bg); }
   .menu-panel { position: absolute; top: 56px; left: 8px; width: min(280px, calc(100% - 16px)); padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(15,23,34,.18); }
   .menu-panel[hidden] { display: none; }
@@ -299,7 +301,7 @@
 
 <header class="topbar">
   <div class="topbar-in">
-    <button class="btn-menu" id="btnMenu" type="button" aria-label="Menu" aria-expanded="false" aria-controls="menuPanel"><span></span><span></span><span></span></button>
+    <button class="btn-menu" id="btnMenu" type="button" aria-label="Daftar akun" aria-expanded="false" aria-controls="menuPanel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c.7-3.4 3.2-5.5 7-5.5s6.3 2.1 7 5.5"></path></svg><span>Daftar akun</span></button>
     <div class="topbar-judul">VBR Casing PC</div>
     <div></div>
   </div>
@@ -830,7 +832,7 @@ function bukaDetail(p) {
   let dr = document.getElementById('dRating');
   if (!dr) { dr = document.createElement('p'); dr.id = 'dRating'; dr.className = 'rating-kartu'; document.getElementById('dNama').after(dr); }
   dr.textContent = teksRating(p) + ' '; dr.hidden = !(p.ulasan > 0);
-  if (p.ulasan > 0) dr.appendChild(mk('a', { href:'ulasan.html?produk=' + encodeURIComponent(p.nama), target:'_blank', rel:'noopener', textContent:'Lihat ulasan, foto & video' }));
+  if (p.ulasan > 0) dr.appendChild(mk('a', { className:'btn-ulasan-media', href:'ulasan.html?produk=' + encodeURIComponent(p.nama), target:'_blank', rel:'noopener', textContent:'Lihat ulasan, foto & video' }));
   const ul = document.getElementById('dList');
   ul.textContent = '';
   barisDetail(p.detail).forEach(t => {
