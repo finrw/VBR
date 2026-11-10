@@ -39,7 +39,6 @@
   h2 { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: 1.1rem; margin: 18px 0 8px; }
   .lb { position: fixed; inset: 0; background: rgba(0,0,0,.95); display: flex; flex-direction: column; align-items: center; padding: 56px 6px 8px; z-index: 50; }
   .lb[hidden] { display: none; }
-  /* Area media memenuhi layar; video tanpa bingkai/sudut membulat. */
   #lbIsi { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
   .lb img { max-width: 100%; max-height: 100%; object-fit: contain; border: 0; }
   .lb iframe { width: 100%; max-width: 720px; height: 100%; border: 0; border-radius: 0; background: #000; }
@@ -67,23 +66,67 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3g
 const nama = new URLSearchParams(location.search).get('produk') || '';
 const el = id => document.getElementById(id);
 function pesan(t) { el('daftar').textContent = ''; const p = document.createElement('p'); p.className = 'kosong'; p.textContent = t; el('daftar').appendChild(p); }
-const idOk = x => /^[A-Za-z0-9_-]{10,80}$/.test(String(x));
+
+function ekstrakMedia(rawVideo, rawFoto) {
+  const items = [];
+  if (rawVideo) {
+    const s = String(rawVideo).trim();
+    let vidInfo = null;
+    if (/^[A-Za-z0-9_-]{10,80}$/.test(s)) {
+      vidInfo = { tipe: 'gdrive', id: s, thumb: 'https://drive.google.com/thumbnail?id=' + s + '&sz=w800', embed: 'https://drive.google.com/file/d/' + s + '/preview' };
+    } else if (s.includes('drive.google.com') || s.includes('docs.google.com')) {
+      const m = s.match(/\/d\/([a-zA-Z0-9_-]+)/) || s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (m && m[1]) {
+        vidInfo = { tipe: 'gdrive', id: m[1], thumb: 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800', embed: 'https://drive.google.com/file/d/' + m[1] + '/preview' };
+      }
+    } else if (s.includes('youtu.be/') || s.includes('youtube.com/')) {
+      let ytId = null;
+      if (s.includes('youtu.be/')) ytId = s.split('youtu.be/')[1].split('?')[0].split('&')[0];
+      else if (s.includes('watch?v=')) ytId = s.split('watch?v=')[1].split('&')[0];
+      else if (s.includes('embed/')) ytId = s.split('embed/')[1].split('?')[0].split('&')[0];
+      if (ytId) {
+        vidInfo = { tipe: 'youtube', id: ytId, thumb: 'https://img.youtube.com/vi/' + ytId + '/hqdefault.jpg', embed: 'https://www.youtube-nocookie.com/embed/' + ytId + '?autoplay=1&rel=0' };
+      }
+    }
+    if (vidInfo) items.push(vidInfo);
+  }
+
+  const idOk = x => /^[A-Za-z0-9_-]{10,80}$/.test(String(x));
+  (rawFoto || []).filter(idOk).forEach(f => {
+    items.push({
+      tipe: 'foto',
+      id: f,
+      thumb: 'https://drive.google.com/thumbnail?id=' + f + '&sz=w800',
+      embed: 'https://drive.google.com/thumbnail?id=' + f + '&sz=w1600'
+    });
+  });
+
+  return items;
+}
+
 let mediaGaleri = [], mediaAktif = 0, sentuhX = 0;
 function tampilkanMedia() {
   const item = mediaGaleri[mediaAktif];
   if (!item) return;
   const isi = el('lbIsi'); isi.textContent = '';
-  if (item.tipe === 'video') {
+  if (item.tipe === 'gdrive' || item.tipe === 'youtube') {
     const f = document.createElement('iframe');
-    f.src = 'https://drive.google.com/file/d/' + item.id + '/preview'; f.allow = 'autoplay'; f.allowFullscreen = true;
+    f.src = item.embed;
+    f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+    f.allowFullscreen = true;
+    if (item.tipe === 'youtube') {
+      f.style.cssText = 'width:100%; max-width:720px; aspect-ratio:16/9; border:0; background:#000;';
+    } else {
+      f.style.cssText = 'width:100%; max-width:720px; height:100%; border:0; border-radius:0; background:#000;';
+    }
     isi.appendChild(f);
   } else {
     const im = document.createElement('img');
-    im.src = 'https://drive.google.com/thumbnail?id=' + item.id + '&sz=w1600'; im.alt = 'Foto pembeli';
+    im.src = item.embed; im.alt = 'Foto pembeli';
     isi.appendChild(im);
   }
   el('lbCap').textContent = item.nama + ' · ' + '\u2605'.repeat(item.bintang) + (item.komentar ? ' · ' + item.komentar : '');
-  el('lbNomor').textContent = (mediaAktif + 1) + ' / ' + mediaGaleri.length + (item.tipe === 'video' ? ' · Video' : ' · Foto');
+  el('lbNomor').textContent = (mediaAktif + 1) + ' / ' + mediaGaleri.length + ((item.tipe === 'gdrive' || item.tipe === 'youtube') ? ' · Video' : ' · Foto');
   el('lbSebelum').disabled = mediaAktif === 0;
   el('lbSesudah').disabled = mediaAktif === mediaGaleri.length - 1;
   el('lb').hidden = false;
@@ -106,35 +149,36 @@ el('lb').addEventListener('touchend', e => {
   const jarak = e.changedTouches[0].clientX - sentuhX;
   if (Math.abs(jarak) > 50) geserMedia(jarak < 0 ? 1 : -1);
 }, { passive: true });
+
 function buatGaleri(ulasan) {
-  const item = [];
+  const semuaItem = [];
   ulasan.forEach(u => {
-    if (u.video && idOk(u.video)) item.push({ tipe: 'video', id: u.video, nama: u.nama, bintang: u.bintang, komentar: u.komentar });
-    (u.foto || []).filter(idOk).forEach(f => item.push({ tipe: 'foto', id: f, nama: u.nama, bintang: u.bintang, komentar: u.komentar }));
+    const parsed = ekstrakMedia(u.video, u.foto);
+    parsed.forEach(it => {
+      it.nama = u.nama;
+      it.bintang = u.bintang;
+      it.komentar = u.komentar;
+      semuaItem.push(it);
+    });
   });
-  if (!item.length) return;
+  if (!semuaItem.length) return;
   el('boxGaleri').hidden = false;
 
-  // Hanya foto yang masuk lightbox, video dibuka di tab baru
-  mediaGaleri = item.filter(it => it.tipe === 'foto').slice(0, 60);
+  mediaGaleri = semuaItem.slice(0, 60);
 
-  item.slice(0, 60).forEach((it) => {
+  mediaGaleri.forEach((it, indeks) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'gitem';
-    const im = document.createElement('img'); im.loading = 'lazy'; im.alt = it.tipe === 'video' ? 'Video pembeli' : 'Foto pembeli';
-    im.src = 'https://drive.google.com/thumbnail?id=' + it.id + '&sz=w800';
+    const im = document.createElement('img'); im.loading = 'lazy'; im.alt = (it.tipe === 'gdrive' || it.tipe === 'youtube') ? 'Video pembeli' : 'Foto pembeli';
+    im.src = it.thumb;
     b.appendChild(im);
-    if (it.tipe === 'video') {
+    if (it.tipe === 'gdrive' || it.tipe === 'youtube') {
       const p = document.createElement('span'); p.className = 'main'; p.textContent = '\u25B6'; b.appendChild(p);
-      b.addEventListener('click', () => {
-        window.open('https://drive.google.com/file/d/' + it.id + '/view', '_blank');
-      });
-    } else {
-      const indeksFoto = mediaGaleri.findIndex(f => f.id === it.id);
-      b.addEventListener('click', () => bukaLb(indeksFoto));
     }
+    b.addEventListener('click', () => bukaLb(indeks));
     el('galeri').appendChild(b);
   });
 }
+
 (async function () {
   if (!nama) { pesan('Produk tidak dipilih. Buka halaman ini dari katalog.'); return; }
   el('judul').textContent = nama;
