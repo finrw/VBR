@@ -1096,7 +1096,7 @@ function kirimPotongan(url, blob, rentang) {
     x.open('PUT', url);
     // Potongan lebih besar membutuhkan batas waktu sedikit lebih longgar,
     // terutama saat pelanggan memakai jaringan seluler yang tidak stabil.
-    x.timeout = 75000;
+    x.timeout = 60000;
     x.setRequestHeader('Content-Range', rentang);
     x.onload = () => ok({ status: x.status, teks: x.responseText, range: x.getResponseHeader('Range') || '' });
     x.onerror = () => gagal(new Error('Koneksi terganggu'));
@@ -1111,13 +1111,15 @@ const tunggu = ms => new Promise(r => setTimeout(r, ms));
 async function unggahTahan(mintaUrl, blob, info, label, sesi) {
   // 8 MB tetap kelipatan 256 KB dan memangkas jumlah request sekitar 4x
   // dibanding konfigurasi lama 2 MB. Foto kecil tetap dikirim sebagai satu bagian.
-  const POTONG = Math.min(8 * 1024 * 1024, blob.size);
+  // Potongan kecil (2 MB) supaya satu kegagalan tidak membuang banyak data; otomatis diperkecil lagi (min 512 KB) kalau sinyal jelek.
+  const KELIPATAN = 256 * 1024;
+  let potong = sesi.potong || Math.min(2 * 1024 * 1024, blob.size);
   const mulaiWaktu = Date.now();
   for (let putaran = 1; putaran <= 4; putaran++) {
     if (!sesi.url) { info.textContent = 'Menyiapkan unggahan…'; sesi.url = await mintaUrl(); sesi.mulai = 0; sesi.hasil = null; }
     let ulangSesi = false;
     while (!sesi.hasil && sesi.mulai < blob.size) {
-      const awal = sesi.mulai, akhir = Math.min(awal + POTONG, blob.size);
+      const awal = sesi.mulai, akhir = Math.min(awal + potong, blob.size);
       let r = null;
       for (let coba = 1; coba <= 3 && !r; coba++) {
         try {
@@ -1125,14 +1127,21 @@ async function unggahTahan(mintaUrl, blob, info, label, sesi) {
           if (h.status >= 500) throw new Error('Server sibuk');
           r = h;
         } catch (e) {
-          if (coba < 3) { info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/2)…'; await tunggu(800 * coba); }
+          potong = Math.max(2 * KELIPATAN, Math.floor(potong / 2 / KELIPATAN) * KELIPATAN); sesi.potong = potong;
+          if (coba < 3) {
+            info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/2)…'; await tunggu(800 * coba);
+            // Tanya Drive berapa byte yang sudah diterima, lalu lanjut dari sana (bukan mengulang dari awal)
+            const st = await kirimPotongan(sesi.url, new Blob([]), 'bytes */' + blob.size).catch(() => null);
+            if (st && (st.status === 200 || st.status === 201)) r = st;
+            else if (st && st.status === 308) { r = { status: 308, range: st.range, cek: true }; }
+          }
         }
       }
       if (!r) {
         if (awal === 0) { sesi.url = null; ulangSesi = true; break; }   // belum ada yang terkirim: mulai sesi baru otomatis
         throw new Error(label + ' terhenti di ' + Math.round(awal / blob.size * 100) + '%. Tekan tombol lagi untuk melanjutkan.');
       }
-      if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); sesi.mulai = m ? Number(m[1]) + 1 : akhir; }
+      if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); sesi.mulai = m ? Number(m[1]) + 1 : (r.cek ? 0 : akhir); }
       else if (r.status === 200 || r.status === 201) { sesi.hasil = JSON.parse(r.teks); sesi.mulai = blob.size; }
       else if (r.status === 404 || r.status === 410) { sesi.url = null; ulangSesi = true; break; }
       else throw new Error(label + ' ditolak (kode ' + r.status + ').');
@@ -1229,7 +1238,7 @@ function gambarPesananPelanggan(daftar) {
     } else if (o.status === 'Selesai') {
       if (o.video) {
         const barisVideo = mk('div', { className:'peta-aksi' });
-        barisVideo.appendChild(mk('a', { className:'akun-btn', href:o.video, target:'_blank', rel:'noopener', textContent:'Lihat video saya' }));
+        barisVideo.appendChild(mk('a', { className:'akun-btn', href:(/^[A-Za-z0-9_-]{11}$/.test(o.video) ? 'https://youtu.be/' + o.video : o.video), target:'_blank', rel:'noopener', textContent:'Lihat video saya' }));
         if (o.bisaGanti) {
           const ganti = mk('button', { type:'button', className:'akun-btn', textContent:'Ganti video' });
           ganti.addEventListener('click', async () => {
