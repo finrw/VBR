@@ -257,6 +257,13 @@
   .d-beli label.garansi { display:flex; align-items:flex-start; gap:8px; }
   .garansi { display:flex; gap:8px; align-items:flex-start; margin-top:10px; font-size:.86rem; line-height:1.4; }
   .garansi input { margin-top:3px; flex:none; }
+  .rekam-dlg { width:min(560px, 100%); max-height:100%; padding:12px; background:#0F1722; color:#fff; }
+  .rekam-dlg video { display:block; width:100%; max-height:60vh; background:#000; border-radius:10px; }
+  .rekam-waktu { margin-top:10px; text-align:center; font-weight:800; font-size:1.3rem; font-variant-numeric:tabular-nums; }
+  .rekam-aktif .rekam-waktu { color:#FF6B6B; }
+  .rekam-info { margin-top:6px; text-align:center; font-size:.88rem; color:#D5DCE3; }
+  .rekam-aksi { display:grid; gap:8px; margin-top:12px; }
+  .rekam-aksi .akun-btn { margin:0; padding:12px; }
   .akun-order a.akun-btn { display:block; text-align:center; text-decoration:none; box-sizing:border-box; padding:10px; }
   .akun-order small { display:block; }
   .peta-pilih { height:280px; margin-top:8px; border:1.5px solid var(--line); border-radius:10px; overflow:hidden; position:relative; z-index:0; }
@@ -417,7 +424,7 @@ let WA_ADMIN = '';   // diambil dari server setelah pelanggan terdaftar masuk (t
 const TURNSTILE_SITEKEY = '0x4AAAAAAFnxjNX-qad3QCXF';   // site key Cloudflare Turnstile (publik)
 const GOOGLE_CLIENT_ID = '292803477286-3l8s1dndbb7ld0p772vnvujdcop9hpof.apps.googleusercontent.com'; // OAuth Web client ID; samakan dengan Script Properties GOOGLE_CLIENT_ID
 const BATAS_QTY = 2;            // harus sama dengan batas checkout di backend
-const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbycNPt2NhAUIpFCMBjzVbsiGqBkcop6X8Qxn42Mr354oBWsCATRnQX7xEFz-yAVrvzqZA/exec';
 
 /* Data contoh. Nanti digantikan data dari spreadsheet.
    "gambar": satu atau beberapa nama file, dipisah tanda |
@@ -1094,8 +1101,7 @@ function kirimPotongan(url, blob, rentang) {
   return new Promise((ok, gagal) => {
     const x = new XMLHttpRequest();
     x.open('PUT', url);
-    // Potongan lebih besar membutuhkan batas waktu sedikit lebih longgar,
-    // terutama saat pelanggan memakai jaringan seluler yang tidak stabil.
+    // Potongan kecil (2 MB) + batas waktu 60 detik: gagal terdeteksi cepat lalu dicoba ulang.
     x.timeout = 60000;
     x.setRequestHeader('Content-Range', rentang);
     x.onload = () => ok({ status: x.status, teks: x.responseText, range: x.getResponseHeader('Range') || '' });
@@ -1105,35 +1111,41 @@ function kirimPotongan(url, blob, rentang) {
   });
 }
 const tunggu = ms => new Promise(r => setTimeout(r, ms));
-// Unggah ke Drive yang tahan sinyal buruk: potongan besar mengurangi jumlah request,
-// coba ulang cepat, dan kalau potongan pertama gagal otomatis meminta sesi baru.
-// otomatis meminta sesi unggah baru (sama dengan menekan tombol lagi, tapi otomatis).
+// Unggah ke Drive yang tahan sinyal buruk:
+// - potongan kecil (mulai 2 MB, kelipatan 256 KB) supaya satu kegagalan hanya membuang sedikit data;
+// - setiap gagal, potongan diperkecil lagi (minimal 512 KB);
+// - sebelum mencoba ulang, Drive ditanya "berapa byte yang sudah kamu terima?" lalu unggah lanjut dari sana
+//   (bukan mengulang potongan yang sama, yang membuat Drive menolak);
+// - kalau belum ada yang terkirim, otomatis meminta sesi unggah baru.
 async function unggahTahan(mintaUrl, blob, info, label, sesi) {
-  // 8 MB tetap kelipatan 256 KB dan memangkas jumlah request sekitar 4x
-  // dibanding konfigurasi lama 2 MB. Foto kecil tetap dikirim sebagai satu bagian.
-  // Potongan kecil (2 MB) supaya satu kegagalan tidak membuang banyak data; otomatis diperkecil lagi (min 512 KB) kalau sinyal jelek.
-  const KELIPATAN = 256 * 1024;
+  const K = 256 * 1024;
   let potong = sesi.potong || Math.min(2 * 1024 * 1024, blob.size);
-  const mulaiWaktu = Date.now();
+  const mulaiWaktu = Date.now(), mulaiByte = sesi.mulai || 0;
+  const ukuran = n => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
   for (let putaran = 1; putaran <= 4; putaran++) {
     if (!sesi.url) { info.textContent = 'Menyiapkan unggahan…'; sesi.url = await mintaUrl(); sesi.mulai = 0; sesi.hasil = null; }
     let ulangSesi = false;
     while (!sesi.hasil && sesi.mulai < blob.size) {
       const awal = sesi.mulai, akhir = Math.min(awal + potong, blob.size);
       let r = null;
-      for (let coba = 1; coba <= 3 && !r; coba++) {
+      for (let coba = 1; coba <= 4 && !r; coba++) {
         try {
-          const h = await kirimPotongan(sesi.url, blob.slice(awal, akhir), 'bytes ' + awal + '-' + (akhir - 1) + '/' + blob.size);
-          if (h.status >= 500) throw new Error('Server sibuk');
-          r = h;
+          const hsl = await kirimPotongan(sesi.url, blob.slice(awal, akhir), 'bytes ' + awal + '-' + (akhir - 1) + '/' + blob.size);
+          if (hsl.status >= 500) throw new Error('Server sibuk');
+          r = hsl;
+          if (r.status === 400 || r.status === 416) {   // posisi tidak cocok (potongan tadi sebenarnya sudah diterima): sinkron ulang dengan Drive
+            const st = await kirimPotongan(sesi.url, new Blob([]), 'bytes */' + blob.size);
+            if (st.status === 200 || st.status === 201) r = st;
+            else if (st.status === 308) r = { status: 308, range: st.range, cek: true, salah: true };
+          }
         } catch (e) {
-          potong = Math.max(2 * KELIPATAN, Math.floor(potong / 2 / KELIPATAN) * KELIPATAN); sesi.potong = potong;
-          if (coba < 3) {
-            info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/2)…'; await tunggu(800 * coba);
-            // Tanya Drive berapa byte yang sudah diterima, lalu lanjut dari sana (bukan mengulang dari awal)
+          potong = Math.max(2 * K, Math.floor(potong / 2 / K) * K); sesi.potong = potong;
+          if (coba < 4) {
+            info.textContent = 'Koneksi terganggu, mencoba lagi (' + coba + '/3)…';
+            await tunggu(1000 * coba);
             const st = await kirimPotongan(sesi.url, new Blob([]), 'bytes */' + blob.size).catch(() => null);
-            if (st && (st.status === 200 || st.status === 201)) r = st;
-            else if (st && st.status === 308) { r = { status: 308, range: st.range, cek: true }; }
+            if (st && (st.status === 200 || st.status === 201 || st.status === 404 || st.status === 410)) r = st;
+            else if (st && st.status === 308) r = { status: 308, range: st.range, cek: true };
           }
         }
       }
@@ -1141,16 +1153,18 @@ async function unggahTahan(mintaUrl, blob, info, label, sesi) {
         if (awal === 0) { sesi.url = null; ulangSesi = true; break; }   // belum ada yang terkirim: mulai sesi baru otomatis
         throw new Error(label + ' terhenti di ' + Math.round(awal / blob.size * 100) + '%. Tekan tombol lagi untuk melanjutkan.');
       }
-      if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.range); sesi.mulai = m ? Number(m[1]) + 1 : (r.cek ? 0 : akhir); }
+      if (r.status === 308) {
+        const m = /bytes=0-(\d+)/.exec(r.range); sesi.mulai = m ? Number(m[1]) + 1 : (r.cek ? 0 : akhir);
+        if (r.salah && sesi.mulai === awal) throw new Error(label + ' ditolak (kode 400).');   // sinkron ulang pun tidak maju: berhenti
+      }
       else if (r.status === 200 || r.status === 201) { sesi.hasil = JSON.parse(r.teks); sesi.mulai = blob.size; }
       else if (r.status === 404 || r.status === 410) { sesi.url = null; ulangSesi = true; break; }
       else throw new Error(label + ' ditolak (kode ' + r.status + ').');
       const terkirim = Math.min(sesi.mulai, blob.size);
       const persen = Math.round(terkirim / blob.size * 100);
       const detik = Math.max(1, (Date.now() - mulaiWaktu) / 1000);
-      const kecepatan = terkirim / detik;
+      const kecepatan = Math.max(0, terkirim - mulaiByte) / detik;
       const sisa = kecepatan > 0 ? Math.ceil((blob.size - terkirim) / kecepatan) : 0;
-      const ukuran = n => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
       info.textContent = 'Mengunggah… ' + persen + '% (' + ukuran(kecepatan) + '/dtk' + (sisa ? ', sisa ±' + (sisa >= 60 ? Math.ceil(sisa / 60) + ' mnt' : sisa + ' dtk') : '') + ')';
     }
     if (sesi.hasil || !ulangSesi) break;
@@ -1197,6 +1211,194 @@ function ringkasBayar(o) {
   if (o.ongkir === null || o.ongkir === undefined) return rp(o.total) + ' · Ongkir: menunggu diisi admin';
   return rp(o.total) + ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir));
 }
+// ---------- Rekam unboxing langsung dari kamera ----------
+const REKAM_MAKS_DETIK = 88;   // sedikit di bawah batas server (90 detik)
+function bisaRekam() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+function formatRekam() {
+  const kandidat = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  return kandidat.find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || '';
+}
+const duaDigit = n => String(n).padStart(2, '0');
+// Membuka layar rekam. Saat "Selesai", memanggil selesai({ file, durasi }). Bitrate dibatasi (±2 Mbps)
+// sehingga video 1,5 menit hanya sekitar 20 MB: jauh lebih cepat diunggah daripada video bawaan kamera HP.
+function bukaPerekam(selesai) {
+  const dlg = mk('dialog', { className:'rekam-dlg' });
+  const v = mk('video', { muted:true, playsInline:true, autoplay:true });
+  v.setAttribute('playsinline', ''); v.muted = true;
+  const waktu = mk('div', { className:'rekam-waktu', textContent:'00:00 / 01:28' });
+  const info = mk('p', { className:'rekam-info', textContent:'Menyalakan kamera…' });
+  const bMulai = mk('button', { type:'button', className:'akun-btn', textContent:'● Mulai rekam' });
+  const bStop = mk('button', { type:'button', className:'akun-btn', textContent:'■ Selesai & unggah' });
+  const bBatal = mk('button', { type:'button', className:'akun-btn', textContent:'Batal' });
+  const aksi = mk('div', { className:'rekam-aksi' });
+  bMulai.disabled = true; bStop.hidden = true;
+  aksi.append(bMulai, bStop, bBatal);
+  dlg.append(v, waktu, info, aksi);
+  document.body.appendChild(dlg);
+
+  let stream = null, rec = null, potongan = [], t0 = 0, timer = null, kunciLayar = null, batal = false, tipe = '';
+  const bersih = () => {
+    clearInterval(timer);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    if (kunciLayar) { try { kunciLayar.release(); } catch (e) {} kunciLayar = null; }
+    if (dlg.open) dlg.close();
+    dlg.remove();
+  };
+  const berhenti = () => {
+    if (rec && rec.state === 'recording') { bStop.disabled = true; info.textContent = 'Menyimpan rekaman…'; rec.stop(); }
+  };
+  const batalkan = () => { batal = true; if (rec && rec.state !== 'inactive') rec.stop(); else bersih(); };
+  bBatal.addEventListener('click', batalkan);
+  bStop.addEventListener('click', berhenti);
+  dlg.addEventListener('cancel', e => { e.preventDefault(); batalkan(); });
+
+  bMulai.addEventListener('click', () => {
+    tipe = formatRekam();
+    const opsi = { videoBitsPerSecond: 2000000, audioBitsPerSecond: 96000 };
+    if (tipe) opsi.mimeType = tipe;
+    try { rec = new MediaRecorder(stream, opsi); }
+    catch (e) {
+      try { rec = new MediaRecorder(stream); }
+      catch (e2) { info.textContent = 'Browser ini tidak bisa merekam. Tutup lalu pakai tombol Pilih video.'; return; }
+    }
+    rec.ondataavailable = e => { if (e.data && e.data.size) potongan.push(e.data); };
+    rec.onerror = () => { info.textContent = 'Rekaman terhenti karena kesalahan. Tekan Selesai & unggah untuk menyimpan bagian yang sudah terekam.'; };
+    rec.onstop = () => {
+      if (batal) { bersih(); return; }
+      const detik = Math.max(1, Math.round((Date.now() - t0) / 1000));
+      const jenis = (tipe || rec.mimeType || 'video/webm').split(';')[0] || 'video/webm';
+      const blob = new Blob(potongan, { type: jenis });
+      bersih();
+      if (blob.size < 2000) { alert('Rekaman kosong. Coba rekam lagi.'); return; }
+      selesai({ file: new File([blob], 'unboxing.' + (jenis.indexOf('mp4') >= 0 ? 'mp4' : 'webm'), { type: jenis }), durasi: detik });
+    };
+    potongan = []; t0 = Date.now();
+    rec.start(1000);
+    bMulai.hidden = true; bStop.hidden = false; dlg.classList.add('rekam-aktif');
+    info.textContent = 'Merekam… jangan tutup halaman atau pindah aplikasi.';
+    timer = setInterval(() => {
+      const d = Math.floor((Date.now() - t0) / 1000);
+      waktu.textContent = duaDigit(Math.floor(d / 60)) + ':' + duaDigit(d % 60) + ' / 01:28';
+      if (d >= REKAM_MAKS_DETIK) berhenti();
+    }, 250);
+  });
+
+  dlg.showModal();
+  (async () => {
+    try {
+      const vid = { facingMode: { ideal:'environment' }, width: { ideal:1280 }, height: { ideal:720 }, frameRate: { ideal:30 } };
+      let s;
+      try { s = await navigator.mediaDevices.getUserMedia({ video: vid, audio: true }); }
+      catch (e1) {
+        if (e1 && e1.name === 'NotFoundError') s = await navigator.mediaDevices.getUserMedia({ video: vid, audio: false });   // tanpa mikrofon
+        else throw e1;
+      }
+      if (batal) { s.getTracks().forEach(t => t.stop()); return; }
+      stream = s;
+      v.srcObject = stream; await v.play().catch(() => {});
+      try { if (navigator.wakeLock) kunciLayar = await navigator.wakeLock.request('screen'); } catch (e) {}   // layar tidak mati saat merekam
+      info.textContent = 'Arahkan kamera ke paket yang belum dibuka, lalu tekan Mulai rekam. Maksimal 1 menit 30 detik.';
+      bMulai.disabled = false;
+    } catch (e) {
+      info.textContent = 'Kamera atau mikrofon tidak bisa dipakai. Izinkan akses kamera dan mikrofon di browser, atau tutup lalu pakai tombol Pilih video.';
+    }
+  })();
+}
+
+// Video yang sudah terunggah: tautan + tombol ganti (60 menit)
+function nodeVideoTerunggah(o) {
+  const hasil = [];
+  const barisVideo = mk('div', { className:'peta-aksi' });
+  barisVideo.appendChild(mk('a', { className:'akun-btn', href:o.video, target:'_blank', rel:'noopener', textContent:'Lihat video saya' }));
+  if (o.bisaGanti) {
+    const ganti = mk('button', { type:'button', className:'akun-btn', textContent:'Ganti video' });
+    ganti.addEventListener('click', async () => {
+      if (!confirm('Ganti video untuk pesanan ' + o.id + '? Video yang lama tidak akan dipakai lagi.')) return;
+      sAkun('Memproses…');
+      try { await panggilAPI('garansiGanti', { customerToken, id:o.id }); await muatAkunPelanggan(); sAkun('Silakan rekam atau pilih video yang baru.'); }
+      catch (e) { sAkun(e.message, true); }
+    });
+    barisVideo.appendChild(ganti);
+  }
+  hasil.push(barisVideo);
+  if (o.bisaGanti) hasil.push(mk('small', { textContent:'Salah pilih video? Anda bisa menggantinya dalam 60 menit setelah diunggah.' }));
+  return hasil;
+}
+
+// Rekam langsung (disarankan) atau pilih video dari galeri, lalu unggah
+function blokUnggahVideo(o) {
+  const inp = mk('input', { type:'file', accept:'video/*' }), st = mk('small', {});
+  const pv = mk('video', { controls:true, playsInline:true, preload:'metadata' });
+  const kotakUp = mk('div', { className:'peta-aksi' });
+  const unggah = mk('button', { type:'button', className:'akun-btn', textContent:'Unggah video ini' });
+  const ulang = mk('button', { type:'button', className:'akun-btn', textContent:'Pilih ulang' });
+  const simpan = mk('a', { className:'akun-btn lebar', textContent:'Simpan salinan video di HP' });
+  simpan.hidden = true;
+  pv.hidden = true; kotakUp.hidden = true;
+  kotakUp.append(unggah, ulang, simpan);
+
+  // Rekam langsung: tombol kamera dalam halaman; kalau browser tidak mendukung, pakai kamera bawaan HP
+  let rekam = null;
+  if (bisaRekam()) {
+    rekam = mk('button', { type:'button', className:'akun-btn' });
+    rekam.textContent = '● Rekam unboxing sekarang';
+  } else {
+    rekam = mk('input', { type:'file', accept:'video/*' });
+    rekam.setAttribute('capture', 'environment');
+  }
+  rekam.style.cssText = 'width:100%;margin-top:8px';
+
+  let berkas = null, sesi = {};
+  const semua = [unggah, ulang, inp, rekam];
+  const kunci = b => semua.forEach(x => { x.disabled = b; });
+  const pasang = (file, durasi) => {
+    berkas = file; sesi = durasi ? { dur: durasi } : {};
+    if (pv.src) URL.revokeObjectURL(pv.src);
+    pv.src = URL.createObjectURL(file); pv.hidden = false; kotakUp.hidden = false;
+    simpan.hidden = !durasi;   // salinan hanya untuk hasil rekaman (satu-satunya salinan)
+    if (durasi) { simpan.href = pv.src; simpan.download = 'unboxing-' + o.id + (/mp4/.test(file.type) ? '.mp4' : '.webm'); }
+  };
+  const mulaiUnggah = async () => {
+    if (!berkas) return;
+    kunci(true);
+    try { await unggahVideo(o, berkas, st, sesi); await muatAkunPelanggan(); sAkun('Video terunggah. Terima kasih!'); }
+    catch (e) { st.textContent = e.message + ' Video Anda masih tersimpan di halaman ini, jangan tutup halaman. Tekan Unggah video ini untuk mencoba lagi.'; kunci(false); }
+  };
+  inp.addEventListener('change', () => {
+    if (!inp.files[0]) return;
+    pasang(inp.files[0], 0);
+    st.textContent = 'Periksa video di atas. Kalau sudah benar, tekan Unggah video ini.';
+  });
+  if (rekam.tagName === 'BUTTON') {
+    rekam.addEventListener('click', () => bukaPerekam(hasil => {
+      pasang(hasil.file, hasil.durasi);
+      st.textContent = 'Rekaman selesai. Mengunggah…';
+      mulaiUnggah();
+    }));
+  } else {
+    rekam.addEventListener('change', () => {
+      if (!rekam.files[0]) return;
+      pasang(rekam.files[0], 0);
+      st.textContent = 'Rekaman diterima. Mengunggah…';
+      mulaiUnggah();
+    });
+  }
+  ulang.addEventListener('click', () => {
+    inp.value = ''; berkas = null; sesi = {};
+    pv.pause(); pv.removeAttribute('src'); pv.hidden = true; kotakUp.hidden = true; simpan.hidden = true; st.textContent = '';
+  });
+  unggah.addEventListener('click', mulaiUnggah);
+  return [
+    mk('small', { textContent:'Disarankan: rekam langsung di sini (ukuran kecil, cepat terunggah). Rekam tanpa terputus sejak paket belum dibuka. Jangan tutup halaman saat merekam atau mengunggah.' }),
+    rekam,
+    mk('small', { textContent:'Atau pilih video dari galeri HP (maks 1 menit 30 detik, maks 300 MB; kualitas 720p sudah cukup):' }),
+    inp, st, pv, kotakUp
+  ];
+}
+
 function gambarPesananPelanggan(daftar) {
   const box = $('akunPesanan'); box.textContent = '';
   if (!daftar.length) { box.textContent = 'Belum ada pesanan.'; return; }
@@ -1234,23 +1436,12 @@ function gambarPesananPelanggan(daftar) {
     } else if (o.status === 'Dikirim') {
       row.appendChild(mk('small', { textContent:'Garansi berlaku dengan video unboxing: rekam tanpa terputus sejak paket belum dibuka.' }));
       if (o.otomatis) row.appendChild(mk('small', { textContent:'Jika tidak dikonfirmasi, pesanan otomatis Selesai pada ' + o.otomatis + '.' }));
+      if (o.video) row.append(...nodeVideoTerunggah(o));
+      else row.append(...blokUnggahVideo(o));
       aksi('Barang sudah diterima (Selesai)', () => ubah(o, 'Selesai', 'Konfirmasi barang ' + o.id + ' sudah diterima?'));
     } else if (o.status === 'Selesai') {
       if (o.video) {
-        const barisVideo = mk('div', { className:'peta-aksi' });
-        barisVideo.appendChild(mk('a', { className:'akun-btn', href:(/^[A-Za-z0-9_-]{11}$/.test(o.video) ? 'https://youtu.be/' + o.video : o.video), target:'_blank', rel:'noopener', textContent:'Lihat video saya' }));
-        if (o.bisaGanti) {
-          const ganti = mk('button', { type:'button', className:'akun-btn', textContent:'Ganti video' });
-          ganti.addEventListener('click', async () => {
-            if (!confirm('Ganti video untuk pesanan ' + o.id + '? Video yang lama tidak akan dipakai lagi.')) return;
-            sAkun('Memproses…');
-            try { await panggilAPI('garansiGanti', { customerToken, id:o.id }); await muatAkunPelanggan(); sAkun('Silakan pilih video yang baru.'); }
-            catch (e) { sAkun(e.message, true); }
-          });
-          barisVideo.appendChild(ganti);
-        }
-        row.appendChild(barisVideo);
-        if (o.bisaGanti) row.appendChild(mk('small', { textContent:'Salah pilih video? Anda bisa menggantinya dalam 60 menit setelah diunggah.' }));
+        row.append(...nodeVideoTerunggah(o));
         if (o.rating) {
           row.appendChild(mk('small', { textContent:'Rating Anda: ' + '★'.repeat(o.rating) + '☆'.repeat(5 - o.rating) + ' · Terima kasih!' }));
           if (o.komentar) row.appendChild(mk('small', { textContent:'Ulasan Anda: ' + o.komentar }));
@@ -1299,32 +1490,7 @@ function gambarPesananPelanggan(daftar) {
         if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau menyampaikan komplain / klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin (komplain / klaim garansi)' }));
       } else {
         row.appendChild(mk('small', { textContent:'Mau klaim garansi? Unggah video unboxing (durasi maksimal 1 menit 30 detik, maks 300 MB). Tombol chat WhatsApp muncul setelah video terunggah.' }));
-        const inp = mk('input', { type:'file', accept:'video/*' }), st = mk('small', {});
-        const pv = mk('video', { controls:true, playsInline:true, preload:'metadata' });
-        const kotakUp = mk('div', { className:'peta-aksi' });
-        const unggah = mk('button', { type:'button', className:'akun-btn', textContent:'Unggah video ini' });
-        const ulang = mk('button', { type:'button', className:'akun-btn', textContent:'Pilih ulang' });
-        pv.hidden = true; kotakUp.hidden = true;
-        kotakUp.append(unggah, ulang);
-        let berkas = null, sesi = {};
-        inp.addEventListener('change', () => {
-          berkas = inp.files[0] || null; sesi = {};
-          if (!berkas) return;
-          if (pv.src) URL.revokeObjectURL(pv.src);
-          pv.src = URL.createObjectURL(berkas); pv.hidden = false; kotakUp.hidden = false;
-          st.textContent = 'Periksa video di atas. Kalau sudah benar, tekan Unggah video ini.';
-        });
-        ulang.addEventListener('click', () => {
-          inp.value = ''; berkas = null; sesi = {};
-          pv.pause(); pv.removeAttribute('src'); pv.hidden = true; kotakUp.hidden = true; st.textContent = '';
-        });
-        unggah.addEventListener('click', async () => {
-          if (!berkas) return;
-          unggah.disabled = ulang.disabled = inp.disabled = true;
-          try { await unggahVideo(o, berkas, st, sesi); await muatAkunPelanggan(); sAkun('Video terunggah. Tombol chat WhatsApp sekarang tersedia.'); }
-          catch (e) { st.textContent = e.message + ' Tekan Unggah video ini untuk mencoba lagi.'; unggah.disabled = ulang.disabled = inp.disabled = false; }
-        });
-        row.append(inp, st, pv, kotakUp);
+        row.append(...blokUnggahVideo(o));
       }
     }
     box.appendChild(row);
