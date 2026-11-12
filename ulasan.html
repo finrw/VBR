@@ -63,7 +63,7 @@
 </main>
 <div class="lb" id="lb" hidden><button type="button" id="lbTutup">Tutup</button><div id="lbIsi"></div><div class="lb-bar"><button type="button" id="lbSebelum" aria-label="Media sebelumnya">‹</button><div class="nomor" id="lbNomor"></div><button type="button" id="lbSesudah" aria-label="Media berikutnya">›</button></div><div class="cap" id="lbCap"></div></div>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbz5hQgM-KzB4L-3HvEjSB3gDHxbeTmIcdFrNqRIFJ-KICd8jYvn1XqWoZVWTSoHY_BFGA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbycNPt2NhAUIpFCMBjzVbsiGqBkcop6X8Qxn42Mr354oBWsCATRnQX7xEFz-yAVrvzqZA/exec';
 const nama = new URLSearchParams(location.search).get('produk') || '';
 const el = id => document.getElementById(id);
 function pesan(t) { el('daftar').textContent = ''; const p = document.createElement('p'); p.className = 'kosong'; p.textContent = t; el('daftar').appendChild(p); }
