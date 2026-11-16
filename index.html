@@ -1201,20 +1201,46 @@ async function unggahVideo(o, file, info, sesi) {
   await panggilAPI('garansiSelesai', { customerToken, id:o.id, fileId:fileId, durasi:Math.round(sesi.dur) });
 }
 
-function kecilkanFoto(file) {
-  return new Promise((ok, gagal) => {
-    const u = URL.createObjectURL(file), img = new Image();
-    img.onload = () => {
-      const s = Math.min(1, 1280 / Math.max(img.width, img.height));
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(u);
-      c.toBlob(b => b ? ok(b) : gagal(new Error('Foto tidak bisa diproses.')), 'image/jpeg', 0.82);
-    };
-    img.onerror = () => { URL.revokeObjectURL(u); gagal(new Error('Foto tidak bisa dibaca. Pakai foto format JPG atau PNG.')); };
-    img.src = u;
-  });
+// Foto HP kadang berukuran besar, berorientasi potret, atau memakai format yang
+// tidak didukung decoder browser. Coba kompres ke JPEG; jika tidak bisa, tetap
+// kirim file asli agar foto yang valid tidak langsung gagal hanya karena kompresi.
+async function kecilkanFoto(file) {
+  const asli = file;
+  const hasilAsli = () => asli;
+  let bitmap = null, url = null;
+  try {
+    if (window.createImageBitmap) {
+      try { bitmap = await createImageBitmap(file, { imageOrientation:'from-image' }); }
+      catch (e) { bitmap = await createImageBitmap(file); }
+    }
+    let sumber = bitmap;
+    if (!sumber) {
+      url = URL.createObjectURL(file);
+      sumber = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Browser tidak dapat membaca format foto ini.'));
+        img.src = url;
+      });
+    }
+    const w = sumber.width || sumber.naturalWidth;
+    const h = sumber.height || sumber.naturalHeight;
+    if (!w || !h) return hasilAsli();
+    const skala = Math.min(1, 1600 / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * skala));
+    canvas.height = Math.max(1, Math.round(h * skala));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return hasilAsli();
+    ctx.drawImage(sumber, 0, 0, canvas.width, canvas.height);
+    const jpeg = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.80));
+    return jpeg && jpeg.size ? jpeg : hasilAsli();
+  } catch (e) {
+    return hasilAsli();
+  } finally {
+    if (bitmap && bitmap.close) bitmap.close();
+    if (url) URL.revokeObjectURL(url);
+  }
 }
 function ringkasBayar(o) {
   if (o.status === 'Dibatalkan') return rp(o.total);
@@ -1404,7 +1430,7 @@ function blokUnggahVideo(o) {
   return [
     mk('small', { textContent:'Disarankan: rekam langsung di sini (ukuran kecil, cepat terunggah). Rekam tanpa terputus sejak paket belum dibuka. Jangan tutup halaman saat merekam atau mengunggah.' }),
     rekam,
-    mk('small', { textContent:'Atau pilih video dari galeri HP (maks 1 menit 30 detik, maks 300 MB; kualitas 720p sudah cukup):' }),
+    mk('small', { textContent:'1. Upload video dari galeri HP (maks 1 menit 30 detik, maks 300 MB; kualitas 720p sudah cukup):' }),
     inp, st, pv, kotakUp
   ];
 }
@@ -1473,6 +1499,9 @@ function gambarPesananPelanggan(daftar) {
           fotoKamera.hidden = true;
           const btnKamera = mk('button', { type:'button', className:'akun-btn', textContent:'Ambil foto langsung dengan kamera' });
           const berkasFoto = [];
+          // Simpan ID dan sesi tiap foto agar tombol kirim ulang melanjutkan unggahan,
+          // bukan mengunggah foto yang sama dari awal lagi.
+          const sesiFotoUpload = [], idFotoTerunggah = [], fotoSiapUpload = [];
           const st2 = mk('small', { textContent:'Foto (opsional, maks 3 foto).' });
           const tambahFoto = daftar => {
             if (berkasFoto.length + daftar.length > 3) {
@@ -1492,7 +1521,8 @@ function gambarPesananPelanggan(daftar) {
           });
           btnKamera.addEventListener('click', () => fotoKamera.click());
           const infoPublik = mk('small', { textContent:'Dengan mengirim ulasan, video unboxing dan foto Anda akan tampil di halaman ulasan produk (bisa dilihat semua pengunjung). Jangan sertakan alamat atau data pribadi. Ingin dihapus? Hubungi admin.' });
-          form.append(ta, fotoIn, btnKamera, fotoKamera, st2, infoPublik, lblNama, kirim);
+          const labelFotoGaleri = mk('small', { textContent:'2. Upload foto dari galeri HP (opsional, maks 3 foto):' });
+          form.append(ta, labelFotoGaleri, fotoIn, btnKamera, fotoKamera, st2, infoPublik, lblNama, kirim);
           for (let n = 1; n <= 5; n++) {
             const b = mk('button', { type:'button', className:'bintang-btn', textContent:'☆', title:n + ' bintang' });
             b.addEventListener('click', () => { pilih = n; tombol.forEach((x, i) => { x.textContent = i < n ? '★' : '☆'; }); form.hidden = false; });
@@ -1504,11 +1534,16 @@ function gambarPesananPelanggan(daftar) {
             try {
               const fotoId = [], berkas = berkasFoto.slice();
               for (let i = 0; i < berkas.length; i++) {
-                st2.textContent = 'Mengunggah foto ' + (i + 1) + ' dari ' + berkas.length + '…';
-                const kecil = await kecilkanFoto(berkas[i]);
-                fotoId.push(await unggahTahan(
-                  async () => (await panggilAPI('ulasanMulai', { customerToken, id:o.id, no:i + 1, size:kecil.size, mime:'image/jpeg' })).uploadUrl,
-                  kecil, st2, 'Foto ' + (i + 1), {}));
+                if (idFotoTerunggah[i]) { fotoId.push(idFotoTerunggah[i]); continue; }
+                st2.textContent = 'Menyiapkan foto ' + (i + 1) + ' dari ' + berkas.length + '…';
+                const kecil = fotoSiapUpload[i] || (fotoSiapUpload[i] = await kecilkanFoto(berkas[i]));
+                const mimeFoto = kecil.type || berkas[i].type || 'application/octet-stream';
+                const sesiFoto = sesiFotoUpload[i] || (sesiFotoUpload[i] = { potong:512 * 1024 });
+                const id = await unggahTahan(
+                  async () => (await panggilAPI('ulasanMulai', { customerToken, id:o.id, no:i + 1, size:kecil.size, mime:mimeFoto })).uploadUrl,
+                  kecil, st2, 'Foto ' + (i + 1), sesiFoto);
+                idFotoTerunggah[i] = id;
+                fotoId.push(id);
               }
               await panggilAPI('beriRating', { customerToken, id:o.id, rating:pilih, komentar:ta.value, tampilNama:cekNama.checked, foto:fotoId, publik:true });
               await muatAkunPelanggan(); segarkanStok();
