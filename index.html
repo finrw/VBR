@@ -1467,11 +1467,32 @@ function gambarPesananPelanggan(daftar) {
           const cekNama = mk('input', { type:'checkbox' });
           const lblNama = mk('label', { className:'garansi' });
           lblNama.append(cekNama, document.createTextNode('Tampilkan nama saya di ulasan. Kalau tidak dicentang, nama disamarkan (contoh: M***s).'));
+          // Foto tetap bisa dipilih dari galeri seperti sebelumnya, dan kini bisa ditambahkan langsung dari kamera HP.
           const fotoIn = mk('input', { type:'file', accept:'image/*', multiple:true });
+          const fotoKamera = mk('input', { type:'file', accept:'image/*', capture:'environment' });
+          fotoKamera.hidden = true;
+          const btnKamera = mk('button', { type:'button', className:'akun-btn', textContent:'Ambil foto langsung dengan kamera' });
+          const berkasFoto = [];
           const st2 = mk('small', { textContent:'Foto (opsional, maks 3 foto).' });
-          fotoIn.addEventListener('change', () => { if (fotoIn.files.length > 3) { st2.textContent = 'Maksimal 3 foto. Pilih ulang.'; fotoIn.value = ''; } else st2.textContent = fotoIn.files.length ? fotoIn.files.length + ' foto dipilih.' : 'Foto (opsional, maks 3 foto).'; });
+          const tambahFoto = daftar => {
+            if (berkasFoto.length + daftar.length > 3) {
+              st2.textContent = 'Maksimal 3 foto. Foto yang sudah dipilih tetap tersimpan.';
+              return;
+            }
+            berkasFoto.push(...daftar);
+            st2.textContent = berkasFoto.length ? berkasFoto.length + ' foto dipilih.' : 'Foto (opsional, maks 3 foto).';
+          };
+          fotoIn.addEventListener('change', () => {
+            if (fotoIn.files.length) tambahFoto(Array.from(fotoIn.files));
+            fotoIn.value = '';
+          });
+          fotoKamera.addEventListener('change', () => {
+            if (fotoKamera.files.length) tambahFoto(Array.from(fotoKamera.files));
+            fotoKamera.value = '';
+          });
+          btnKamera.addEventListener('click', () => fotoKamera.click());
           const infoPublik = mk('small', { textContent:'Dengan mengirim ulasan, video unboxing dan foto Anda akan tampil di halaman ulasan produk (bisa dilihat semua pengunjung). Jangan sertakan alamat atau data pribadi. Ingin dihapus? Hubungi admin.' });
-          form.append(ta, fotoIn, st2, infoPublik, lblNama, kirim);
+          form.append(ta, fotoIn, btnKamera, fotoKamera, st2, infoPublik, lblNama, kirim);
           for (let n = 1; n <= 5; n++) {
             const b = mk('button', { type:'button', className:'bintang-btn', textContent:'☆', title:n + ' bintang' });
             b.addEventListener('click', () => { pilih = n; tombol.forEach((x, i) => { x.textContent = i < n ? '★' : '☆'; }); form.hidden = false; });
@@ -1481,7 +1502,7 @@ function gambarPesananPelanggan(daftar) {
             if (!pilih) return;
             kirim.disabled = true; sAkun('Mengirim ulasan…');
             try {
-              const fotoId = [], berkas = Array.from(fotoIn.files);
+              const fotoId = [], berkas = berkasFoto.slice();
               for (let i = 0; i < berkas.length; i++) {
                 st2.textContent = 'Mengunggah foto ' + (i + 1) + ' dari ' + berkas.length + '…';
                 const kecil = await kecilkanFoto(berkas[i]);
