@@ -230,6 +230,9 @@
   .d-beli textarea { min-height: 80px; }
   .d-total { margin-top: 12px; font-weight: 600; }
   .d-captcha { margin-top: 12px; }
+  .vbr-human-check { display:flex; align-items:flex-start; gap:9px; margin:12px 0 4px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#F8FAFC; font-size:.9rem; line-height:1.4; }
+  .vbr-human-check input[type=checkbox] { width:20px; height:20px; margin:1px 0 0; flex:none; accent-color:var(--accent); }
+  .vbr-human-check label { margin:0; font-weight:500; cursor:pointer; }
   .btn-pesan, .btn-wa { display: block; width: 100%; margin-top: 14px; padding: 12px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
   .btn-wa { background: #1B7F3B; }
   .btn-pesan:disabled { opacity: .55; cursor: not-allowed; }
@@ -351,6 +354,7 @@
 
     <section id="akunMasuk">
       <p>Daftar atau masuk dulu supaya bisa membeli barang.</p>
+      <div class="vbr-human-check"><input id="humanGoogle" type="checkbox"><label for="humanGoogle">Saya bukan robot — saya manusia.</label></div>
       <div class="akun-google" id="googleBtnAkun"></div>
       <p class="akun-info">Login Google hanya untuk memastikan nama dan email Anda asli. Kami tidak mendapat password atau data lain dari akun Google Anda. Layar Google menyebut finrw.github.io karena itu alamat situs toko ini, bukan karena terhubung ke akun GitHub.</p>
       <p class="akun-atau">atau</p>
@@ -363,6 +367,7 @@
     <section id="akunDaftar" hidden>
       <form id="formDaftar">
         <div id="fieldsDaftar"></div>
+        <div class="vbr-human-check"><input id="humanDaftar" type="checkbox" required><label for="humanDaftar">Saya bukan robot — saya manusia.</label></div>
         <div class="d-captcha" id="capDaftar"></div>
         <button class="btn-pesan" type="submit" id="btnKirimKodeDaftar">Kirim kode ke email</button>
         <button class="akun-btn" type="button" data-kembali>Kembali</button>
@@ -373,6 +378,7 @@
       <form id="formMasukEmail">
         <label for="masukEmail">Email terdaftar</label>
         <input id="masukEmail" type="email" maxlength="120" autocomplete="email" required>
+        <div class="vbr-human-check"><input id="humanMasuk" type="checkbox" required><label for="humanMasuk">Saya bukan robot — saya manusia.</label></div>
         <div class="d-captcha" id="capMasuk"></div>
         <button class="btn-pesan" type="submit" id="btnKirimKodeMasuk">Kirim kode ke email</button>
         <button class="akun-btn" type="button" data-kembali>Kembali</button>
@@ -902,6 +908,10 @@ function siapkanTombolGoogle(id) {
   coba();
 }
 async function tanganiLoginGoogle(response) {
+  if (!$('humanGoogle').checked) {
+    sAkun('Centang verifikasi “Saya bukan robot” terlebih dahulu.', true);
+    return;
+  }
   try {
     sAkun('Memverifikasi akun Google…');
     const r = await panggilAPI('customerLogin', { idToken: response.credential });
@@ -1515,10 +1525,11 @@ $('akunDlg').addEventListener('close', hapusCaptchaAkun);
 
 $('btnPilihDaftar').addEventListener('click', () => {
   sAkun('');
+  $('humanDaftar').checked = false;
   fDaftar = isiField($('fieldsDaftar'), { emailBisaDiubah:true });
   tampilAkun('akunDaftar');
 });
-$('btnPilihMasuk').addEventListener('click', () => { sAkun(''); tampilAkun('akunMasukEmail'); });
+$('btnPilihMasuk').addEventListener('click', () => { sAkun(''); $('humanMasuk').checked = false; tampilAkun('akunMasukEmail'); });
 document.querySelectorAll('[data-kembali]').forEach(b => b.addEventListener('click', () => {
   sAkun(''); tampilAkun('akunMasuk'); siapkanTombolGoogle('googleBtnAkun');
 }));
@@ -1622,6 +1633,10 @@ function buatBeli(p) {
   // Nomor dari akun sudah terverifikasi saat daftar; kalau nomor diubah, wajib diketik ulang
   hp.addEventListener('input', () => { if (normHp(hp.value) !== normHp(hpAkun)) { if (normHp(hp2.value) === normHp(hpAkun)) hp2.value = ''; } });
   const total = mk('p', { className: 'd-total' });
+  const humanBox = mk('div', { className: 'vbr-human-check' });
+  const human = mk('input', { type: 'checkbox', required: true, id: 'humanCheckout' });
+  const humanLabel = mk('label', { htmlFor: 'humanCheckout', textContent: 'Saya bukan robot — saya manusia.' });
+  humanBox.append(human, humanLabel);
   const cap = mk('div', { className: 'd-captcha' });
   const kirim = mk('button', { type: 'submit', className: 'btn-pesan', textContent: 'Pesan sekarang' });
   const ket = mk('p', { className: 'd-pesan', role: 'status' });
@@ -1629,7 +1644,7 @@ function buatBeli(p) {
   const gar = mk('input', { type: 'checkbox', required: true });
   const garL = mk('label', { className: 'garansi' });
   garL.append(gar, document.createTextNode('Saya mengerti: garansi hanya berlaku jika ada video unboxing yang direkam tanpa terputus sejak paket belum dibuka.'));
-  form.append(total, garL, cap, kirim);
+  form.append(total, garL, humanBox, cap, kirim);
   box.append(form, waBanyak, ket);
 
   const tulis = (t, salah) => { ket.className = 'd-pesan ' + (salah ? 'salah' : 'benar'); ket.textContent = t; };
@@ -1638,7 +1653,7 @@ function buatBeli(p) {
     total.textContent = 'Total: ' + rp(harga * Math.max(n, 1));
     total.append(mk('small', { textContent: 'Harga sudah termasuk PPN, belum termasuk ongkir. Ongkir diisi admin setelah pesanan masuk.' }));
     [nm, hp, hp2, al].forEach(el => { el.closest('label').hidden = banyak; });
-    cap.hidden = kirim.hidden = garL.hidden = banyak;
+    cap.hidden = kirim.hidden = garL.hidden = humanBox.hidden = banyak;
     waBanyak.hidden = !banyak || !WA_ADMIN;
     waBanyak.href = waLink('Halo admin VBR, saya mau pesan ' + n + ' unit ' + p.nama + '.');
   };
@@ -1656,6 +1671,7 @@ function buatBeli(p) {
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const tk = widgetId !== null ? turnstile.getResponse(widgetId) : '';
+    if (!human.checked) return tulis('Centang verifikasi “Saya bukan robot” terlebih dahulu.', true);
     if (normHp(hp.value) !== normHp(hp2.value)) return tulis('Nomor HP dan ketik ulangnya tidak sama. Periksa lagi.', true);
     if (!tk) return tulis('Selesaikan verifikasi captcha dulu.', true);
     kirim.disabled = true;
