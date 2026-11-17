@@ -1112,7 +1112,7 @@ function kirimPotongan(url, blob, rentang) {
     const x = new XMLHttpRequest();
     x.open('PUT', url);
     // Potongan kecil (2 MB) + batas waktu 60 detik: gagal terdeteksi cepat lalu dicoba ulang.
-    x.timeout = 60000;
+    x.timeout = blob.size <= 1024 * 1024 ? 25000 : 60000;
     x.setRequestHeader('Content-Range', rentang);
     x.onload = () => ok({ status: x.status, teks: x.responseText, range: x.getResponseHeader('Range') || '' });
     x.onerror = () => gagal(new Error('Koneksi terganggu'));
@@ -1189,6 +1189,24 @@ async function unggahTahan(mintaUrl, blob, info, label, sesi) {
   return sesi.hasil.id;
 }
 
+const bacaBase64 = blob => new Promise((ok, gagal) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(',')[1] || '');
+  r.onerror = () => gagal(new Error('Foto tidak bisa dibaca'));
+  r.readAsDataURL(blob);
+});
+// Foto kecil dikirim lewat Apps Script (sama seperti login dan kirim ulasan), dicoba 3 kali.
+async function unggahFotoLewatAPI(o, kecil, no, mime, info) {
+  const data = await bacaBase64(kecil);
+  let err = null;
+  for (let coba = 1; coba <= 3; coba++) {
+    try {
+      info.textContent = coba === 1 ? 'Mengunggah foto ' + no + '…' : 'Mengunggah foto ' + no + ', percobaan ' + coba + '/3…';
+      return (await panggilAPI('ulasanFoto', { customerToken, id:o.id, no, mime, data })).id;
+    } catch (e) { err = e; if (/Selesai|sudah dikirim|Maksimal|berformat|terlalu|sesi pelanggan/i.test(e.message)) throw e; await tunggu(1500 * coba); }
+  }
+  throw new Error('Foto ' + no + ' gagal terunggah (' + (err && err.message || 'koneksi') + '). Periksa sinyal lalu tekan Kirim ulasan lagi.');
+}
 async function unggahVideo(o, file, info, sesi) {
   if (!/^video\//.test(file.type)) throw new Error('File harus berupa video.');
   if (file.size > 300 * 1024 * 1024) throw new Error('Ukuran video maksimal 300 MB.');
@@ -1538,10 +1556,15 @@ function gambarPesananPelanggan(daftar) {
                 st2.textContent = 'Menyiapkan foto ' + (i + 1) + ' dari ' + berkas.length + '…';
                 const kecil = fotoSiapUpload[i] || (fotoSiapUpload[i] = await kecilkanFoto(berkas[i]));
                 const mimeFoto = kecil.type || berkas[i].type || 'application/octet-stream';
-                const sesiFoto = sesiFotoUpload[i] || (sesiFotoUpload[i] = { potong:512 * 1024 });
-                const id = await unggahTahan(
-                  async () => (await panggilAPI('ulasanMulai', { customerToken, id:o.id, no:i + 1, size:kecil.size, mime:mimeFoto })).uploadUrl,
-                  kecil, st2, 'Foto ' + (i + 1), sesiFoto);
+                let id;
+                if (kecil.size <= 1.5 * 1024 * 1024 && /^image\/(jpeg|png|webp)$/.test(mimeFoto)) {
+                  id = await unggahFotoLewatAPI(o, kecil, i + 1, mimeFoto, st2);
+                } else {
+                  const sesiFoto = sesiFotoUpload[i] || (sesiFotoUpload[i] = { potong:512 * 1024 });
+                  id = await unggahTahan(
+                    async () => (await panggilAPI('ulasanMulai', { customerToken, id:o.id, no:i + 1, size:kecil.size, mime:mimeFoto })).uploadUrl,
+                    kecil, st2, 'Foto ' + (i + 1), sesiFoto);
+                }
                 idFotoTerunggah[i] = id;
                 fotoId.push(id);
               }
