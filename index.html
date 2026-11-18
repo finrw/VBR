@@ -3,19 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14502A">
 <title>VBR Casing PC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #EEF1F4;
+    --bg: #F7F9F7;
     --surface: #FFFFFF;
-    --ink: #16202B;
-    --muted: #5B6877;
-    --line: #D5DCE3;
-    --accent: #1F4FFF;
-    --radius: 14px;
+    --ink: #101A13;
+    --muted: #56635A;
+    --line: #D9E1DB;
+    --accent: #1E6B34;
+    --accent-dark: #14502A;
+    --soft: #EAF4EC;
+    --pink: #D61F6B;
+    --radius: 8px;
   }
   * { box-sizing: border-box; margin: 0; }
   html { scroll-behavior: smooth; }
@@ -42,7 +46,7 @@
     position: absolute; inset: 0;
     display: flex; align-items: flex-end;
     padding: 24px;
-    background: linear-gradient(135deg, #16202B 0%, #1F4FFF 140%);
+    background: linear-gradient(135deg, #101A13 0%, #1E6B34 140%);
     color: #fff;
     opacity: 0;
     visibility: hidden;
@@ -278,7 +282,7 @@
   .akun-order .bintang-btn { width:auto; border:none; background:transparent; color:#F5A623; font-size:1.9rem; line-height:1; padding:2px 6px; cursor:pointer; }
   .rating-kartu { margin:3px 0 0; color:#B26A00; font-weight:600; font-size:.88rem; }
   .btn-ulasan-media { display:inline-flex; align-items:center; justify-content:center; min-height:38px; margin:10px 0 2px 0; padding:8px 13px; border:1.5px solid var(--accent); border-radius:10px; background:#fff; color:var(--accent); font:inherit; font-weight:600; line-height:1.2; text-decoration:none; }
-  .btn-ulasan-media:hover { background:#EEF3FF; }
+  .btn-ulasan-media:hover { background:var(--soft); }
   .btn-ulasan-media:active { transform:translateY(1px); }
   .dua-kolom { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .akun-order textarea { width:100%; box-sizing:border-box; margin-top:6px; padding:10px; border:1.5px solid var(--line); border-radius:10px; font:inherit; }
@@ -306,6 +310,26 @@
   .menu-panel[hidden] { display: none; }
   .menu-panel .akun-email { display: block; margin-bottom: 10px; }
   .menu-panel .akun-btn { width: 100%; }
+
+  /* ---- Tema hijau, putih, hitam, aksen pink ---- */
+  body {
+    background-image: linear-gradient(rgba(30,107,52,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(30,107,52,.045) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .topbar { border-bottom: 2px solid var(--accent); }
+  .topbar-judul { color: var(--ink); font-weight: 800; letter-spacing: -.01em; }
+  .kepala h1::before { content: ""; display: inline-block; width: 9px; height: 9px; margin: 0 10px 4px 0; background: var(--pink); vertical-align: middle; }
+  .kepala p { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+  .kartu { border-radius: 8px; transition: border-color .15s, box-shadow .15s, transform .15s; }
+  .kartu:hover { border-color: var(--accent); box-shadow: 0 8px 20px rgba(20, 80, 42, .12); transform: translateY(-1px); }
+  .btn-pesan { border-radius: 6px; background: var(--accent); }
+  .btn-pesan:hover:not(:disabled) { background: var(--accent-dark); }
+  .akun-btn, .btn-ulasan-media, .akun-keluar { border-radius: 6px; }
+  .akun-btn:hover { background: var(--soft); }
+  .cari { border-radius: 6px; }
+  .cari:focus, .akun-isi input:focus, .d-beli input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(30, 107, 52, .15); }
+  .akun-tab button[aria-selected="true"] { border-bottom-color: var(--pink); }
+  .d-harga { color: var(--accent-dark); }
 </style>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1686,7 +1710,10 @@ $('formLengkapi').addEventListener('submit', e => { e.preventDefault(); simpanDa
 $('formProfil').addEventListener('submit', e => { e.preventDefault(); simpanDariForm(fProfil, $('btnSimpanProfil'), 'Profil berhasil disimpan.'); });
 
 document.querySelectorAll('[data-keluar]').forEach(b => b.addEventListener('click', async () => {
-  try { await panggilAPI('customerLogout', { customerToken }); } catch (e) {}
+  // Keluar langsung di HP (tidak menunggu server, supaya tidak macet saat sinyal lemah);
+  // pemberitahuan ke server dikirim di belakang layar.
+  const tokenLama = customerToken;
+  if (tokenLama) panggilAPI('customerLogout', { customerToken: tokenLama }).catch(() => {});
   simpanSesiPelanggan(''); customerUser = null;
   await muatAkunPelanggan();
   sAkun('Anda sudah keluar.');

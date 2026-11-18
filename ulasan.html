@@ -3,26 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14502A">
 <title>Ulasan produk · VBR Casing PC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #EEF1F4;
+    --bg: #F7F9F7;
     --surface: #FFFFFF;
-    --ink: #16202B;
-    --muted: #5B6877;
-    --line: #D5DCE3;
-    --accent: #1F4FFF;
-    --radius: 14px;
+    --ink: #101A13;
+    --muted: #56635A;
+    --line: #D9E1DB;
+    --accent: #1E6B34;
+    --accent-dark: #14502A;
+    --soft: #EAF4EC;
+    --pink: #D61F6B;
+    --radius: 8px;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: "Figtree", system-ui, sans-serif; background: var(--bg, #eef1f4); color: var(--ink, #151c26); }
   .bar { background: var(--surface, #fff); border-bottom: 1px solid var(--line, #dfe3e8); }
   .bar-in { max-width: 720px; margin: 0 auto; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
-  .bar a { color: #1d4ed8; text-decoration: none; font-weight: 600; }
-  .btn-kembali { display:inline-flex; align-items:center; min-height:38px; padding:8px 12px; border:1.5px solid #1d4ed8; border-radius:10px; background:#fff; color:#1d4ed8; font:inherit; font-weight:600; white-space:nowrap; }
-  .btn-kembali:hover { background:#EEF3FF; }
+  .bar a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .btn-kembali { display:inline-flex; align-items:center; min-height:38px; padding:8px 12px; border:1.5px solid var(--accent); border-radius:10px; background:#fff; color:var(--accent); font:inherit; font-weight:600; white-space:nowrap; }
+  .btn-kembali:hover { background:var(--soft); }
   .bar b { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; }
   main { max-width: 720px; margin: 0 auto; padding: 18px 16px 40px; }
   h1 { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; font-size: 1.5rem; margin: 0 0 4px; }
@@ -52,6 +56,17 @@
   .lb .cap { color: #fff; margin-top: 6px; max-width: 640px; text-align: center; font-size: .88rem; line-height: 1.35; max-height: 4.2em; overflow: auto; }
   #lbTutup { position: absolute; top: 8px; right: 8px; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; background: rgba(255,255,255,.92); }
   .kosong { color: var(--muted, #5c6673); }
+
+  /* ---- Tema hijau, putih, hitam, aksen pink ---- */
+  body {
+    background-image: linear-gradient(rgba(30,107,52,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(30,107,52,.045) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .bar { border-bottom: 2px solid var(--accent); }
+  h1::before { content: ""; display: inline-block; width: 9px; height: 9px; margin: 0 10px 4px 0; background: var(--pink); vertical-align: middle; }
+  .kartu { border-radius: 8px; }
+  .btn-kembali { border-radius: 6px; }
+  .ringkas { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .85rem; }
 </style>
 </head>
 <body>
