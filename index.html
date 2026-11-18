@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#14502A">
-<title>VBR Casing PC</title>
+<title>VBR Casing PC - Store Jakarta Indonesia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -351,11 +351,12 @@
   .cmp-kepala h2::before { content: ""; display: inline-block; width: 8px; height: 8px; margin: 0 8px 3px 0; background: var(--pink); }
   .cmp-opsi { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: .88rem; }
   .cmp-opsi input { width: 20px; height: 20px; margin: 0; }
-  .cmp-scroll { overflow-x: auto; padding: 0 16px 8px; }
-  .cmp-tabel { border-collapse: collapse; width: 100%; min-width: calc(108px + var(--n, 2) * 124px); table-layout: fixed; font-size: .88rem; }
+  .cmp-scroll { overflow-x: auto; padding: 0 12px 8px; }
+  .cmp-tabel { border-collapse: collapse; width: 100%; min-width: 100%; table-layout: fixed; font-size: .88rem; }
   .cmp-tabel th, .cmp-tabel td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: break-word; }
   .cmp-tabel thead th { vertical-align: bottom; }
-  .cmp-tabel th:first-child { width: 108px; position: sticky; left: 0; z-index: 1; background: var(--surface); color: var(--muted); font-weight: 600; font-size: .76rem; }
+  .cmp-tabel[data-n="3"] { min-width: calc(96px + 3 * 124px); }
+  .cmp-tabel th:first-child { width: 96px; padding-left: 4px; padding-right: 4px; position: sticky; left: 0; z-index: 1; background: var(--surface); color: var(--muted); font-weight: 600; font-size: .76rem; }
   .cmp-tabel tr.beda th:first-child::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; background: var(--pink); vertical-align: middle; }
   .cmp-tabel tr.beda td { background: var(--soft); }
   .cmp-prod .cmp-foto { aspect-ratio: 1 / 1; display: grid; place-items: center; background: #F6F8FA; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -972,12 +973,12 @@ function petaSpek(p) {
 }
 function gambarBanding() {
   const daftar = pilihBanding.map(n => semuaProduk.find(p => p.nama === n)).filter(Boolean);
-  const tabel = $('cmpTabel'); tabel.textContent = ''; tabel.style.setProperty('--n', String(daftar.length));
+  const tabel = $('cmpTabel'); tabel.textContent = ''; tabel.dataset.n = String(daftar.length);
   if (daftar.length < 2) { tabel.appendChild(mk('caption', { className: 'cmp-kosong', textContent: 'Pilih minimal 2 produk.' })); return; }
   const thead = document.createElement('thead'), tr0 = document.createElement('tr');
   tr0.appendChild(document.createElement('th'));
   daftar.forEach(p => {
-    const th = document.createElement('th'); th.className = 'cmp-prod'; th.scope = 'col';
+    const th = document.createElement('th'); th.className = 'cmp-prod'; th.scope = 'col'; th.style.width = 'calc((100% - 96px) / ' + daftar.length + ')';
     th.appendChild(buatFoto(p, 'cmp-foto'));
     th.appendChild(mk('b', { textContent: p.nama }));
     if (p.ulasan > 0) th.appendChild(mk('span', { className: 'cmp-meta', textContent: teksRating(p) }));
@@ -1880,14 +1881,14 @@ function buatBeli(p) {
   const wa = (teks, label) => mk('a', { className: 'btn-wa', href: waLink(teks), target: '_blank', rel: 'noopener', textContent: label, hidden: !WA_ADMIN });
   if (!bisa) {
     box.appendChild(wa('Halo admin VBR, saya mau tanya ' + p.nama + '.', 'Tanya admin via WhatsApp'));
-    if (!WA_ADMIN) box.appendChild(mk('p', { className: 'd-pesan', textContent: 'Untuk bertanya ke admin, silakan daftar atau masuk dulu lewat menu ☰ di kiri atas.' }));
+    if (!WA_ADMIN) box.appendChild(mk('p', { className: 'd-pesan', textContent: 'Untuk bertanya ke admin, silakan daftar atau masuk Akun' }));
     return;
   }
   if (!customerToken || !customerUser || !customerUser.terdaftar) {
     const lengkap = customerToken && customerUser && !customerUser.terdaftar;
     box.appendChild(mk('p', { className: 'd-pesan salah', textContent: lengkap
-      ? 'Data akun Anda belum lengkap. Tutup jendela ini, buka menu ☰ di kiri atas, lalu lengkapi pendaftaran.'
-      : 'Untuk membeli, silakan daftar atau masuk dulu lewat menu ☰ di kiri atas halaman utama.' }));
+      ? 'Data akun Anda belum lengkap. Tutup jendela ini, buka menu Akun, lalu lengkapi Profile Akun Anda.'
+      : 'Untuk membeli, silakan daftar atau masuk Akun' }));
     return;
   }
 
