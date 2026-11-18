@@ -32,7 +32,9 @@
   .kartu .bintang { color: #F5A623; letter-spacing: 1px; }
   .kartu p { margin: 8px 0 0; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
   .kartu small { color: var(--muted, #5c6673); }
-  .galeri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 18px; }
+  .kartu .nm { font-weight: 700; }
+  .kartu .bt { display: block; margin-top: 2px; }
+  .galeri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 0; }
   .gitem { position: relative; padding: 0; border: 0; border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: #d9dee4; cursor: pointer; }
   .gitem img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .gitem .main { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 2rem; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
@@ -57,7 +59,6 @@
 <main>
   <h1 id="judul">Ulasan</h1>
   <p class="ringkas" id="ringkas"></p>
-  <section id="boxGaleri" hidden><h2>Foto &amp; video pembeli</h2><div class="galeri" id="galeri"></div></section>
   <h2>Ulasan pembeli</h2>
   <div id="daftar"><p class="kosong">Memuat ulasan…</p></div>
 </main>
@@ -106,34 +107,34 @@ el('lb').addEventListener('touchend', e => {
   const jarak = e.changedTouches[0].clientX - sentuhX;
   if (Math.abs(jarak) > 50) geserMedia(jarak < 0 ? 1 : -1);
 }, { passive: true });
-function buatGaleri(ulasan) {
-  const item = [];
-  ulasan.forEach(u => {
-    if (u.video && idOk(u.video)) item.push({ tipe: 'video', id: u.video, nama: u.nama, bintang: u.bintang, komentar: u.komentar });
-    (u.foto || []).filter(idOk).forEach(f => item.push({ tipe: 'foto', id: f, nama: u.nama, bintang: u.bintang, komentar: u.komentar }));
-  });
-  if (!item.length) return;
-  el('boxGaleri').hidden = false;
-
-  // Hanya foto yang masuk lightbox, video dibuka di tab baru
-  mediaGaleri = item.filter(it => it.tipe === 'foto').slice(0, 60);
-
-  item.slice(0, 60).forEach((it) => {
+// Semua foto (urut sesuai kartu) masuk lightbox; video dibuka di tab baru.
+function siapkanFoto(ulasan) {
+  mediaGaleri = [];
+  ulasan.forEach(u => (u.foto || []).filter(idOk).forEach(f => {
+    mediaGaleri.push({ tipe: 'foto', id: f, nama: u.nama, bintang: u.bintang, komentar: u.komentar });
+  }));
+}
+// Foto dan video milik satu pembeli, ditaruh di dalam kartunya sendiri.
+function buatMediaKartu(u) {
+  const daftar = [];
+  if (u.video && idOk(u.video)) daftar.push({ tipe: 'video', id: u.video });
+  (u.foto || []).filter(idOk).slice(0, 3).forEach(f => daftar.push({ tipe: 'foto', id: f }));
+  if (!daftar.length) return null;
+  const g = document.createElement('div'); g.className = 'galeri';
+  daftar.forEach(it => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'gitem';
     const im = document.createElement('img'); im.loading = 'lazy'; im.alt = it.tipe === 'video' ? 'Video pembeli' : 'Foto pembeli';
     im.src = 'https://drive.google.com/thumbnail?id=' + it.id + '&sz=w800';
     b.appendChild(im);
     if (it.tipe === 'video') {
       const p = document.createElement('span'); p.className = 'main'; p.textContent = '\u25B6'; b.appendChild(p);
-      b.addEventListener('click', () => {
-        window.open('https://drive.google.com/file/d/' + it.id + '/view', '_blank');
-      });
+      b.addEventListener('click', () => { window.open('https://drive.google.com/file/d/' + it.id + '/view', '_blank'); });
     } else {
-      const indeksFoto = mediaGaleri.findIndex(f => f.id === it.id);
-      b.addEventListener('click', () => bukaLb(indeksFoto));
+      b.addEventListener('click', () => bukaLb(mediaGaleri.findIndex(f => f.id === it.id)));
     }
-    el('galeri').appendChild(b);
+    g.appendChild(b);
   });
+  return g;
 }
 (async function () {
   if (!nama) { pesan('Produk tidak dipilih. Buka halaman ini dari katalog.'); return; }
@@ -144,19 +145,19 @@ function buatGaleri(ulasan) {
     const d = await res.json();
     if (!d.ok) throw new Error(d.error || 'Gagal memuat ulasan');
     el('ringkas').textContent = d.jumlah ? '★ ' + Number(d.rata).toFixed(1) + ' · ' + d.jumlah + ' ulasan' : '';
-    buatGaleri(d.ulasan);
+    siapkanFoto(d.ulasan);
     if (!d.ulasan.length) { pesan('Belum ada ulasan untuk produk ini.'); return; }
     el('daftar').textContent = '';
     d.ulasan.forEach(u => {
       const k = document.createElement('div'); k.className = 'kartu';
       const atas = document.createElement('div'); atas.className = 'atas';
-      const kiri = document.createElement('span');
-      const b = document.createElement('b'); b.textContent = u.nama + ' ';
-      const bt = document.createElement('span'); bt.className = 'bintang'; bt.textContent = '\u2605'.repeat(u.bintang) + '\u2606'.repeat(5 - u.bintang);
-      kiri.append(b, bt);
+      const b = document.createElement('span'); b.className = 'nm'; b.textContent = u.nama;
       const w = document.createElement('small'); w.textContent = u.waktu;
-      atas.append(kiri, w); k.appendChild(atas);
+      atas.append(b, w); k.appendChild(atas);
+      const bt = document.createElement('span'); bt.className = 'bintang bt'; bt.textContent = '\u2605'.repeat(u.bintang) + '\u2606'.repeat(5 - u.bintang);
+      k.appendChild(bt);
       if (u.komentar) { const p = document.createElement('p'); p.textContent = u.komentar; k.appendChild(p); }
+      const m = buatMediaKartu(u); if (m) k.appendChild(m);
       el('daftar').appendChild(k);
     });
   } catch (e) { pesan('Ulasan belum bisa dimuat. Coba lagi sebentar.'); }

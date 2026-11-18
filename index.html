@@ -290,6 +290,9 @@
   .akun-pilih { display:grid; gap:10px; margin-top:10px; }
   .akun-isi .akun-btn { width:100%; margin-top:10px; }
   .akun-status.salah { color:#C62828; }
+  .akun-tab { display:flex; margin:0 0 14px; border-bottom:1px solid var(--line); }
+  .akun-tab button { flex:1; padding:10px 8px; border:0; border-bottom:3px solid transparent; background:none; font:inherit; font-weight:600; color:var(--muted); cursor:pointer; }
+  .akun-tab button[aria-selected="true"] { color:var(--accent, #1F4FFF); border-bottom-color:var(--accent, #1F4FFF); }
   .akun-keluar { margin:12px 8px 0 0; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; font:inherit; cursor:pointer; }
 
   /* ---- Header: tombol akun + judul tengah ---- */
@@ -405,13 +408,20 @@
     </section>
 
     <section id="akunProfil" hidden>
-      <p class="akun-email" id="akunEmail"></p>
-      <form id="formProfil">
-        <div id="fieldsProfil"></div>
-        <button class="btn-pesan" type="submit" id="btnSimpanProfil">Simpan profil</button>
-      </form>
-      <h3 style="margin-top:22px">Riwayat pesanan</h3>
-      <div id="akunPesanan"></div>
+      <div class="akun-tab" role="tablist">
+        <button type="button" role="tab" id="tabPesanan" data-tab="pesanan" aria-selected="false">Pesanan</button>
+        <button type="button" role="tab" id="tabProfil" data-tab="profil" aria-selected="true">Profil</button>
+      </div>
+      <div id="panelProfil">
+        <p class="akun-email" id="akunEmail"></p>
+        <form id="formProfil">
+          <div id="fieldsProfil"></div>
+          <button class="btn-pesan" type="submit" id="btnSimpanProfil">Simpan profil</button>
+        </form>
+      </div>
+      <div id="panelPesanan" hidden>
+        <div id="akunPesanan"></div>
+      </div>
       <button class="akun-keluar" type="button" data-keluar>Keluar dari akun</button>
     </section>
 
@@ -942,6 +952,15 @@ function pasangCaptchaAkun(el) {
 const tokenCaptchaAkun = () => (widgetAkun !== null && window.turnstile) ? turnstile.getResponse(widgetAkun) : '';
 const ulangCaptchaAkun = () => { if (widgetAkun !== null && window.turnstile) { try { turnstile.reset(widgetAkun); } catch (e) {} } };
 
+function pilihTabAkun(nama) {
+  const pesanan = nama === 'pesanan';
+  $('panelPesanan').hidden = !pesanan;
+  $('panelProfil').hidden = pesanan;
+  $('tabPesanan').setAttribute('aria-selected', String(pesanan));
+  $('tabProfil').setAttribute('aria-selected', String(!pesanan));
+}
+document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => pilihTabAkun(b.dataset.tab)));
+
 function tampilAkun(id) {
   hapusCaptchaAkun();
   BAGIAN_AKUN.forEach(b => { $(b).hidden = (b !== id); });
@@ -1064,7 +1083,10 @@ async function muatWaAdmin() {
 function gambarAkun(d) {
   customerUser = d.user; segarkanRingkas();
   if (d.user.terdaftar) {
+    const baruBuka = $('akunProfil').hidden;
     tampilAkun('akunProfil');
+    if (baruBuka) pilihTabAkun((d.pesanan || []).length ? 'pesanan' : 'profil');
+    $('tabPesanan').textContent = (d.pesanan || []).length ? 'Pesanan (' + d.pesanan.length + ')' : 'Pesanan';
     $('akunEmail').textContent = 'Masuk sebagai ' + d.user.email;
     const tp = JSON.stringify(d.user);
     if (tp !== tandaProfil || !fProfil) { fProfil = isiField($('fieldsProfil'), { alamat:true, nilai:d.user }); tandaProfil = tp; }
