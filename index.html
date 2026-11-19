@@ -1719,14 +1719,24 @@ function gambarPesananPelanggan(daftar) {
             berkasFoto.push(...daftar);
             st2.textContent = berkasFoto.length ? berkasFoto.length + ' foto dipilih.' : 'Foto (opsional, maks 3 foto).';
           };
-          fotoIn.addEventListener('change', () => {
-            if (fotoIn.files.length) tambahFoto(Array.from(fotoIn.files));
-            fotoIn.value = '';
-          });
-          fotoKamera.addEventListener('change', () => {
-            if (fotoKamera.files.length) tambahFoto(Array.from(fotoKamera.files));
-            fotoKamera.value = '';
-          });
+                    const pilihFoto = async input => {
+            const daftar = Array.from(input.files);
+            if (!daftar.length) return;
+            st2.textContent = 'Membaca foto…';
+            try {
+              const hasil = [];
+              for (const f of daftar) {
+                const buf = await f.arrayBuffer();
+                hasil.push(new Blob([buf], { type: f.type || 'image/jpeg' }));
+              }
+              tambahFoto(hasil);
+            } catch (e) {
+              st2.textContent = 'Foto tidak bisa dibaca. Coba pilih lagi.';
+            }
+            input.value = '';
+          };
+          fotoIn.addEventListener('change', () => pilihFoto(fotoIn));
+          fotoKamera.addEventListener('change', () => pilihFoto(fotoKamera));
           btnKamera.addEventListener('click', () => fotoKamera.click());
           const infoPublik = mk('small', { textContent:'Dengan mengirim ulasan, video unboxing dan foto Anda akan tampil di halaman ulasan produk (bisa dilihat semua pengunjung). Jangan sertakan alamat atau data pribadi. Ingin dihapus? Hubungi admin.' });
           const labelFotoGaleri = mk('small', { textContent:'2. Upload foto dari galeri HP (opsional, maks 3 foto):' });
