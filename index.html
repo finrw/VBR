@@ -1910,7 +1910,7 @@ function buatBeli(p) {
   const hpAkun = customerUser && customerUser.hp ? customerUser.hp : '';
   const hp2 = field('Ketik ulang No. HP', mk('input', { type: 'tel', maxLength: 16, required: true, autocomplete: 'off', placeholder: 'Ulangi nomor HP', value: hpAkun }));
   const al = field('Alamat pengiriman', mk('textarea', { maxLength: 250, required: true, readOnly: true, rows: 4 }));
-  al.closest('label').appendChild(mk('small', { textContent: 'Alamat diambil dari akun Anda. Untuk mengubah, buka menu ☰ lalu Akun & Pesanan.' }));
+  al.closest('label').appendChild(mk('small', { textContent: 'Alamat diambil dari akun Anda. Untuk mengubah, buka Akun & Pesanan.' }));
   if (customerUser && customerUser.alamat) al.value = customerUser.alamat;
   // Nomor dari akun sudah terverifikasi saat daftar; kalau nomor diubah, wajib diketik ulang
   hp.addEventListener('input', () => { if (normHp(hp.value) !== normHp(hpAkun)) { if (normHp(hp2.value) === normHp(hpAkun)) hp2.value = ''; } });
