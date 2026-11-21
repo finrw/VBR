@@ -318,7 +318,7 @@ function gambarDashboard(d) {
     if (!daftar.some(t => t[0] === o.status)) daftar.unshift([o.status, o.status === 'Selesai' ? 'Selesai (konfirmasi pembeli)' : o.status]);
     daftar.forEach(([v, l]) => { const op = document.createElement('option'); op.value = v; op.textContent = l; if (v === o.status) op.selected = true; sel.appendChild(op); });
     sel.onchange = async () => {
-      try { await panggil('setStatus', { id: o.id, status: sel.value }); muatDashboard(); }
+      try { const j = await panggil('setStatus', { id: o.id, status: sel.value }); if (j.notif) alert(j.notif); muatDashboard(); }
       catch (err) { alert(err.message); muatDashboard(); }
     };
     if (o.status === 'Selesai' || o.status === 'Dibatalkan') sel.disabled = true;
@@ -355,7 +355,7 @@ function gambarDashboard(d) {
       rb.type = 'button'; rb.textContent = 'Simpan resi';
       rb.style.cssText = 'margin-left:6px;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font:inherit';
       rb.onclick = async () => {
-        try { await panggil('setResi', { id: o.id, kurir: ks.value, resi: ri.value }); muatDashboard(); }
+        try { const j = await panggil('setResi', { id: o.id, kurir: ks.value, resi: ri.value }); if (j.notif) alert(j.notif); muatDashboard(); }
         catch (err) { alert(err.message); }
       };
       kw.append(ks, ri, rb); r.appendChild(kw);

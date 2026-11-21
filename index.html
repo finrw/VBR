@@ -332,10 +332,35 @@
   .d-harga { color: var(--accent-dark); }
 
   /* ---- Bandingkan produk ---- */
-  .kartu-bungkus { position: relative; display: flex; }
+  .kartu-bungkus { display: flex; flex-direction: column; gap: 6px; }
   .kartu-bungkus > .kartu { flex: 1; min-width: 0; }
-  .cmp-btn { position: absolute; top: 8px; right: 8px; z-index: 2; min-height: 32px; padding: 4px 10px; border: 1.5px solid var(--accent); border-radius: 999px; background: rgba(255,255,255,.96); color: var(--accent); font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; }
+  .kartu-aksi { display: flex; gap: 6px; }
+  .cmp-btn { flex: 1; min-height: 38px; padding: 4px 10px; border: 1.5px solid var(--accent); border-radius: 6px; background: #fff; color: var(--accent); font: inherit; font-size: .84rem; font-weight: 600; cursor: pointer; }
   .cmp-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .fav-btn { flex: 0 0 46px; min-height: 38px; padding: 0; border: 1.5px solid var(--pink); border-radius: 6px; background: #fff; color: var(--pink); font-size: 1.2rem; line-height: 1; cursor: pointer; }
+  .fav-btn[aria-pressed="true"] { background: var(--pink); color: #fff; }
+  #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 30; max-width: calc(100% - 32px); padding: 10px 14px; border-radius: 8px; background: var(--ink); color: #fff; font-size: .88rem; }
+  #toast[hidden] { display: none; }
+  #invDlg { width: min(560px, calc(100% - 16px)); }
+  .inv-isi { padding: 18px 18px 8px; }
+  .inv-isi h2 { font-size: 1.25rem; }
+  .inv-isi h3 { margin-top: 14px; font-size: .95rem; }
+  .inv-isi p { margin: 2px 0; overflow-wrap: anywhere; }
+  .inv-sub { color: var(--muted); }
+  .inv-baris { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+  .inv-baris span:last-child { text-align: right; font-weight: 600; }
+  .inv-tabel { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: .88rem; }
+  .inv-tabel th, .inv-tabel td { padding: 8px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  .inv-tabel th:nth-child(n+2), .inv-tabel td:nth-child(n+2) { text-align: right; }
+  .inv-total .inv-baris:last-child { margin-top: 4px; padding-top: 8px; border-top: 2px solid var(--accent); font-size: 1.05rem; }
+  .inv-catatan { margin-top: 12px; color: var(--muted); font-size: .82rem; }
+  .inv-aksi { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 18px 18px; }
+  @media print {
+    body.cetak-inv > *:not(#invDlg) { display: none !important; }
+    body.cetak-inv #invDlg { position: absolute; inset: 0; margin: 0; width: 100%; max-height: none; height: auto; overflow: visible; border: 0; box-shadow: none; }
+    body.cetak-inv #invDlg::backdrop { display: none; }
+    body.cetak-inv .inv-aksi { display: none !important; }
+  }
   #cmpBar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 2px solid var(--accent); box-shadow: 0 -6px 18px rgba(20,80,42,.12); }
   #cmpBar[hidden] { display: none; }
   #cmpInfo { flex: 1; font-size: .88rem; line-height: 1.3; }
@@ -411,6 +436,7 @@
   </div>
 </dialog>
 
+<div id="toast" role="status" aria-live="polite" hidden></div>
 <div id="cmpBar" hidden>
   <div id="cmpInfo" role="status"></div>
   <button type="button" id="cmpLihat" disabled>Bandingkan</button>
@@ -421,6 +447,13 @@
   <label class="cmp-opsi"><input type="checkbox" id="cmpBeda"> Tampilkan hanya yang berbeda</label>
   <div class="cmp-scroll"><table class="cmp-tabel" id="cmpTabel"></table></div>
   <div class="cmp-kaki"><button class="tutup" id="cmpTutup" type="button">Tutup</button></div>
+</dialog>
+<dialog id="invDlg" aria-label="Bukti pesanan">
+  <div class="inv-isi" id="invIsi"></div>
+  <div class="inv-aksi">
+    <button class="btn-pesan" type="button" id="invCetak">Cetak / simpan PDF</button>
+    <button class="tutup" type="button" id="invTutup">Tutup</button>
+  </div>
 </dialog>
 <dialog id="akunDlg">
   <div class="akun-isi">
@@ -482,6 +515,7 @@
     <section id="akunProfil" hidden>
       <div class="akun-tab" role="tablist">
         <button type="button" role="tab" id="tabPesanan" data-tab="pesanan" aria-selected="false">Pesanan</button>
+        <button type="button" role="tab" id="tabFavorit" data-tab="favorit" aria-selected="false">Favorit</button>
         <button type="button" role="tab" id="tabProfil" data-tab="profil" aria-selected="true">Profil</button>
       </div>
       <div id="panelProfil">
@@ -493,6 +527,9 @@
       </div>
       <div id="panelPesanan" hidden>
         <div id="akunPesanan"></div>
+      </div>
+      <div id="panelFavorit" hidden>
+        <div id="akunFavorit"></div>
       </div>
       <button class="akun-keluar" type="button" data-keluar>Keluar dari akun</button>
     </section>
@@ -689,10 +726,14 @@ function tampilkan(daftar) {
     kartu.onclick = () => bukaDetail(p);
     const bungkus = document.createElement('div');
     bungkus.className = 'kartu-bungkus';
-    bungkus.append(kartu, buatTombolBanding(p));
+    const aksi = document.createElement('div');
+    aksi.className = 'kartu-aksi';
+    aksi.append(buatTombolBanding(p), buatTombolFavorit(p));
+    bungkus.append(kartu, aksi);
     grid.appendChild(bungkus);
   });
   perbaruiBanding();
+  perbaruiFavorit();
 }
 
 /* ============================================================
@@ -1013,6 +1054,112 @@ elBd('cmpReset').addEventListener('click', () => { pilihBanding = []; perbaruiBa
 elBd('cmpTutup').addEventListener('click', () => elBd('cmpDlg').close());
 elBd('cmpBeda').addEventListener('change', gambarBanding);
 
+/* ============================================================
+   FAVORIT (disimpan di akun pembeli) + PESAN SINGKAT
+   ============================================================ */
+let favorit = [];
+let seqFavorit = 0;
+let timerToast = 0;
+function toast(pesan) {
+  const t = $('toast'); t.textContent = pesan; t.hidden = false;
+  clearTimeout(timerToast); timerToast = setTimeout(() => { t.hidden = true; }, 3000);
+}
+function buatTombolFavorit(p) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'fav-btn'; b.dataset.nama = String(p.nama).trim();
+  b.addEventListener('click', e => { e.stopPropagation(); aturFavorit(b.dataset.nama, !favorit.includes(b.dataset.nama)); });
+  return b;
+}
+function perbaruiFavorit() {
+  document.querySelectorAll('.fav-btn').forEach(b => {
+    const on = favorit.includes(b.dataset.nama);
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? '\u2665' : '\u2661';
+    b.setAttribute('aria-label', (on ? 'Hapus dari favorit: ' : 'Simpan ke favorit: ') + b.dataset.nama);
+    b.title = on ? 'Hapus dari favorit' : 'Simpan ke favorit';
+  });
+}
+function laporFavorit(pesan) { if ($('akunDlg').open) sAkun(pesan, true); else toast(pesan); }
+async function aturFavorit(nama, on) {
+  if (!customerToken || !customerUser || !customerUser.terdaftar) {
+    $('btnAkun').click();
+    sAkun('Masuk atau daftar dulu untuk menyimpan favorit.');
+    return;
+  }
+  const lama = favorit.slice(), no = ++seqFavorit;
+  favorit = on ? lama.concat([nama]) : lama.filter(x => x !== nama);
+  perbaruiFavorit(); gambarFavorit();
+  try {
+    const r = await panggilAPI('customerFavorit', { customerToken, produk: nama, on });
+    if (no === seqFavorit && Array.isArray(r.favorit)) favorit = r.favorit;
+  } catch (e) {
+    if (no === seqFavorit) favorit = lama;
+    laporFavorit(e.message);
+  }
+  perbaruiFavorit(); gambarFavorit();
+}
+function gambarFavorit() {
+  const box = $('akunFavorit'); if (!box) return;
+  $('tabFavorit').textContent = favorit.length ? 'Favorit (' + favorit.length + ')' : 'Favorit';
+  box.textContent = '';
+  if (!favorit.length) { box.textContent = 'Belum ada favorit. Tekan tombol hati di bawah kartu produk untuk menyimpannya.'; return; }
+  favorit.forEach(nama => {
+    const p = semuaProduk.find(x => String(x.nama).trim() === nama);
+    const row = mk('div', { className: 'akun-order' });
+    row.appendChild(mk('b', { textContent: nama }));
+    if (!p) {
+      row.appendChild(mk('small', { textContent: 'Produk ini sudah tidak tersedia.' }));
+    } else {
+      const info = [(p.harga !== '' && p.harga !== undefined) ? rp(p.harga) : '', infoStok(p)].filter(Boolean).join(' · ');
+      if (info) row.appendChild(mk('small', { textContent: info }));
+      const lihat = mk('button', { type: 'button', className: 'akun-btn', textContent: 'Lihat produk' });
+      lihat.addEventListener('click', () => { $('akunDlg').close(); bukaDetail(p); });
+      row.appendChild(lihat);
+    }
+    const hapus = mk('button', { type: 'button', className: 'akun-btn', textContent: 'Hapus dari favorit' });
+    hapus.addEventListener('click', () => aturFavorit(nama, false));
+    row.appendChild(hapus);
+    box.appendChild(row);
+  });
+}
+
+/* ============================================================
+   BUKTI PESANAN (dibuat di browser dari data pesanan pembeli)
+   ============================================================ */
+function bukaInvoice(o) {
+  const box = $('invIsi'); box.textContent = '';
+  const baris = (k, v) => { const r = mk('div', { className: 'inv-baris' }); r.append(mk('span', { textContent: k }), mk('span', { textContent: v })); return r; };
+  const jumlah = Number(o.jumlah) || 0, total = Number(o.total) || 0;
+  const satuan = Number(o.satuan) || (jumlah ? total / jumlah : 0);
+  const adaOngkir = o.ongkir !== null && o.ongkir !== undefined;
+  box.append(mk('h2', { textContent: 'VBR Casing PC' }), mk('p', { className: 'inv-sub', textContent: 'Bukti pesanan' }));
+  box.append(baris('Nomor pesanan', String(o.id)), baris('Tanggal', String(o.waktu || '-')), baris('Status', String(o.status)));
+  box.appendChild(mk('h3', { textContent: 'Penerima' }));
+  [o.pembeli, o.hp, o.alamat].forEach(t => { if (t) box.appendChild(mk('p', { textContent: String(t) })); });
+
+  const tabel = mk('table', { className: 'inv-tabel' });
+  const kepala = mk('tr', {});
+  ['Produk', 'Jml', 'Harga', 'Subtotal'].forEach(t => kepala.appendChild(mk('th', { scope: 'col', textContent: t })));
+  const isi = mk('tr', {});
+  [String(o.produk), String(jumlah), rp(satuan), rp(total)].forEach(t => isi.appendChild(mk('td', { textContent: t })));
+  const thead = mk('thead', {}), tbody = mk('tbody', {});
+  thead.appendChild(kepala); tbody.appendChild(isi); tabel.append(thead, tbody);
+  box.appendChild(tabel);
+
+  const jml = mk('div', { className: 'inv-total' });
+  jml.append(baris('Total barang', rp(total)), baris('Ongkir', adaOngkir ? rp(o.ongkir) : 'Menunggu diisi admin'),
+    baris('Total bayar', adaOngkir ? rp(total + Number(o.ongkir)) : 'Belum bisa dihitung'));
+  box.appendChild(jml);
+  if (o.resi) box.appendChild(mk('p', { textContent: 'Kurir: ' + (o.kurir || '-') + ' · Resi: ' + o.resi }));
+  box.appendChild(mk('p', { className: 'inv-catatan', textContent: 'Harga sudah termasuk PPN, belum termasuk ongkir. Dokumen ini adalah bukti pesanan dari VBR Casing PC.' }));
+  $('invDlg').showModal();
+}
+elBd('invCetak').addEventListener('click', () => { document.body.classList.add('cetak-inv'); window.print(); });
+elBd('invTutup').addEventListener('click', () => elBd('invDlg').close());
+elBd('invDlg').addEventListener('click', e => { if (e.target === elBd('invDlg')) elBd('invDlg').close(); });
+elBd('invDlg').addEventListener('close', () => document.body.classList.remove('cetak-inv'));
+window.addEventListener('afterprint', () => document.body.classList.remove('cetak-inv'));
+
 function bukaDetail(p) {
   produkAktif = p;
   buatGaleri(p);
@@ -1064,7 +1211,7 @@ function segarkanRingkas() {
 }
 function simpanSesiPelanggan(t) {
   customerToken = t || '';
-  if (!t) { WA_ADMIN = ''; akunCache = null; tandaProfil = tandaLengkapi = tandaPesanan = ''; fProfil = fLengkapi = null; }
+  if (!t) { WA_ADMIN = ''; akunCache = null; tandaProfil = tandaLengkapi = tandaPesanan = ''; fProfil = fLengkapi = null; favorit = []; perbaruiFavorit(); }
   try {
     if (customerToken) localStorage.setItem('vbr_customer_token', customerToken);
     else { localStorage.removeItem('vbr_customer_token'); sessionStorage.removeItem('vbr_customer_token'); }
@@ -1121,11 +1268,10 @@ const tokenCaptchaAkun = () => (widgetAkun !== null && window.turnstile) ? turns
 const ulangCaptchaAkun = () => { if (widgetAkun !== null && window.turnstile) { try { turnstile.reset(widgetAkun); } catch (e) {} } };
 
 function pilihTabAkun(nama) {
-  const pesanan = nama === 'pesanan';
-  $('panelPesanan').hidden = !pesanan;
-  $('panelProfil').hidden = pesanan;
-  $('tabPesanan').setAttribute('aria-selected', String(pesanan));
-  $('tabProfil').setAttribute('aria-selected', String(!pesanan));
+  [['pesanan', 'tabPesanan', 'panelPesanan'], ['favorit', 'tabFavorit', 'panelFavorit'], ['profil', 'tabProfil', 'panelProfil']].forEach(([n, t, p]) => {
+    $(p).hidden = nama !== n;
+    $(t).setAttribute('aria-selected', String(nama === n));
+  });
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => pilihTabAkun(b.dataset.tab)));
 
@@ -1255,6 +1401,7 @@ function gambarAkun(d) {
     tampilAkun('akunProfil');
     if (baruBuka) pilihTabAkun((d.pesanan || []).length ? 'pesanan' : 'profil');
     $('tabPesanan').textContent = (d.pesanan || []).length ? 'Pesanan (' + d.pesanan.length + ')' : 'Pesanan';
+    gambarFavorit();
     $('akunEmail').textContent = 'Masuk sebagai ' + d.user.email;
     const tp = JSON.stringify(d.user);
     if (tp !== tandaProfil || !fProfil) { fProfil = isiField($('fieldsProfil'), { alamat:true, nilai:d.user }); tandaProfil = tp; }
@@ -1278,6 +1425,7 @@ async function muatAkunPelanggan() {
     if (d.customerToken) simpanSesiPelanggan(d.customerToken);   // perpanjang login
     if (d.user.terdaftar && !WA_ADMIN) await muatWaAdmin();
     akunCache = d;
+    if (Array.isArray(d.favorit)) { favorit = d.favorit; perbaruiFavorit(); }
     gambarAkun(d);
   } catch (e) {
     const sesiBerakhir = /sesi pelanggan/i.test(e.message);
@@ -1782,6 +1930,7 @@ function gambarPesananPelanggan(daftar) {
         row.append(...blokUnggahVideo(o));
       }
     }
+    if (o.status !== 'Dibatalkan') aksi('Bukti pesanan', () => bukaInvoice(o));
     box.appendChild(row);
   });
 }
