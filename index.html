@@ -1151,7 +1151,7 @@ function bukaInvoice(o) {
     baris('Total bayar', adaOngkir ? rp(total + Number(o.ongkir)) : 'Belum bisa dihitung'));
   box.appendChild(jml);
   if (o.resi) box.appendChild(mk('p', { textContent: 'Kurir: ' + (o.kurir || '-') + ' · Resi: ' + o.resi }));
-  box.appendChild(mk('p', { className: 'inv-catatan', textContent: 'Harga sudah termasuk PPN, belum termasuk ongkir. Dokumen ini adalah bukti pesanan dari VBR Casing PC.' }));
+  box.appendChild(mk('p', { className: 'inv-catatan', textContent: 'Harga sudah termasuk PPN dan ongkir. Dokumen ini adalah bukti pesanan dari VBR Casing PC.' }));
   $('invDlg').showModal();
 }
 elBd('invCetak').addEventListener('click', () => { document.body.classList.add('cetak-inv'); window.print(); });
