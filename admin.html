@@ -43,6 +43,14 @@
   .baris:first-of-type { border-top: none; }
   .baris span { overflow-wrap: anywhere; }
   .hapus { padding: 6px 12px; border: 1.5px solid var(--bahaya); border-radius: 8px; background: transparent; color: var(--bahaya); }
+  .edit { padding: 6px 12px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); }
+  .aksi-baris { display: flex; gap: 8px; flex-shrink: 0; }
+  .batal { margin-top: 10px; width: 100%; padding: 12px; border: 1.5px solid var(--line); border-radius: 10px; background: transparent; color: inherit; }
+  input[readonly] { background: #F1F4F2; color: var(--muted); }
+  #editDlg { width: min(560px, calc(100% - 16px)); max-height: 92vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  #editDlg::backdrop { background: rgba(0,0,0,.45); }
+  #editDlg h2 { margin-bottom: 4px; }
+  .cek { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-weight: 400; }
   :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 10px; }
   .kpi div { background: #EAF4EC; border-radius: 10px; padding: 10px 12px; }
@@ -117,6 +125,34 @@
     </div>
   </div>
 </main>
+
+<dialog id="editDlg" aria-labelledby="editJudul">
+  <h2 id="editJudul">Edit produk</h2>
+  <form id="formEdit">
+    <label for="eNama">Nama produk <small>(kalau diganti, pesanan, ulasan, dan favorit ikut pindah ke nama baru)</small></label>
+    <input type="text" id="eNama" required maxlength="80" autocomplete="off">
+    <p class="info" id="eInfoNama"></p>
+
+    <label for="eDetail">Detail <small>(satu baris per spesifikasi)</small></label>
+    <textarea id="eDetail"></textarea>
+
+    <label for="eFoto">Ganti foto produk <small>(kosongkan kalau foto tidak diganti; foto pertama jadi foto utama)</small></label>
+    <p class="info" id="eInfoFotoLama"></p>
+    <input type="file" id="eFoto" accept="image/*" multiple>
+    <p class="info" id="eInfoFoto"></p>
+
+    <label for="ePutar">Ganti foto putar 360° <small>(opsional, minimal 2 foto, disarankan 24)</small></label>
+    <p class="info" id="eInfoPutarLama"></p>
+    <input type="file" id="ePutar" accept="image/*" multiple>
+    <p class="info" id="eInfoPutar"></p>
+    <label class="cek" id="eHapus360Baris" for="eHapus360"><input type="checkbox" id="eHapus360"> Hapus foto putar 360° produk ini</label>
+
+    <button class="utama" type="submit" id="eSimpan">Simpan perubahan</button>
+    <button class="batal" type="button" id="eBatal">Batal</button>
+    <progress id="eBar" value="0" max="1" hidden></progress>
+    <p class="pesan" id="ePesan" role="status"></p>
+  </form>
+</dialog>
 
 <script>
 /* ============================================================
@@ -246,7 +282,16 @@ async function muatDaftar() {
     tombol.className = 'hapus';
     tombol.textContent = 'Hapus';
     tombol.onclick = () => hapus(p.nama);
-    baris.append(nama, tombol);
+    const ubah = document.createElement('button');
+    ubah.type = 'button';
+    ubah.className = 'edit';
+    ubah.textContent = 'Edit';
+    ubah.setAttribute('aria-label', 'Edit ' + p.nama);
+    ubah.onclick = () => bukaEdit(p);
+    const aksi = document.createElement('div');
+    aksi.className = 'aksi-baris';
+    aksi.append(ubah, tombol);
+    baris.append(nama, aksi);
     box.appendChild(baris);
   });
 }
@@ -474,6 +519,91 @@ $('form').addEventListener('submit', async e => {
   } catch (err) {
     tampilPesan('Gagal: ' + err.message, true);
   } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---------- Edit produk ---------- */
+let produkEdit = null;
+const jumlahFotoLama = p => String(p.gambar || '').split('|').map(s => s.trim()).filter(Boolean).length;
+function jumlah360Lama(p) {
+  const b = String(p.putar360 || '').split(/[|,]/).map(s => s.trim()).filter(Boolean);
+  if (b.length >= 2 && b.every(s => /\.(webp|jpe?g|png)$/i.test(s))) return b.length;
+  const n = parseInt(b[1], 10);
+  return b.length === 2 && n >= 2 ? n : 0;
+}
+function pesanEdit(teks, salah) {
+  const p = $('ePesan'); p.className = 'pesan ' + (salah ? 'salah' : 'benar'); p.textContent = teks;
+}
+function bukaEdit(p) {
+  produkEdit = p;
+  $('eNama').value = p.nama;
+  const kode = p.nama.toLowerCase().split(/[^a-z0-9]+/).filter(t => /\d/.test(t)).map(t => t.toUpperCase());
+  $('eInfoNama').textContent = Number(p.ulasan) > 0
+    ? 'Produk ini sudah punya ' + p.ulasan + ' ulasan, jadi nama baru harus tetap memuat ' + (kode.length ? 'kode model ' + kode.join(' / ') : 'nama lama') + '.'
+    : '';
+  $('eDetail').value = String(p.detail || '').split('|').map(s => s.trim()).filter(Boolean).join('\n');
+  $('eFoto').value = ''; $('ePutar').value = ''; $('eHapus360').checked = false;
+  $('eInfoFoto').textContent = ''; $('eInfoPutar').textContent = '';
+  const nf = jumlahFotoLama(p), n360 = jumlah360Lama(p);
+  $('eInfoFotoLama').textContent = nf ? 'Foto sekarang: ' + nf + ' foto.' : 'Belum ada foto.';
+  $('eInfoPutarLama').textContent = n360 ? 'Foto 360° sekarang: ' + n360 + ' foto.' : 'Belum ada foto 360°.';
+  $('eHapus360Baris').hidden = !n360;
+  $('eBar').hidden = true; $('ePesan').textContent = ''; $('eSimpan').disabled = false;
+  $('editDlg').showModal();
+}
+$('eFoto').addEventListener('change', e => { const n = e.target.files.length; $('eInfoFoto').textContent = n ? n + ' foto dipilih (menggantikan semua foto lama)' : ''; });
+$('ePutar').addEventListener('change', e => { const n = e.target.files.length; $('eInfoPutar').textContent = n ? n + ' foto dipilih (menggantikan foto 360° lama)' : ''; });
+$('eBatal').addEventListener('click', () => $('editDlg').close());
+
+$('formEdit').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!produkEdit) return;
+  const btn = $('eSimpan'), bar = $('eBar');
+  const namaBaru = $('eNama').value.trim();
+  const ganti = namaBaru !== produkEdit.nama;
+  if (!namaBaru || !slug(namaBaru)) return pesanEdit('Nama produk harus berisi huruf atau angka.', true);
+  if (ganti && daftarProduk.some(p => p.nama !== produkEdit.nama && p.nama.toLowerCase() === namaBaru.toLowerCase())) return pesanEdit('Sudah ada produk dengan nama itu.', true);
+  const foto = [...$('eFoto').files];
+  const putar = urut($('ePutar').files);
+  if (putar.length === 1) return pesanEdit('Foto 360° minimal 2 foto (disarankan 24).', true);
+  if (ganti && !confirm('Ganti nama "' + produkEdit.nama + '" menjadi "' + namaBaru + '"?\nRiwayat pesanan, ulasan, dan favorit ikut memakai nama baru.')) return;
+  if (putar.length > 99) return pesanEdit('Foto 360° maksimal 99 foto.', true);
+
+  // Nama file baru diberi kode unik supaya foto lama tidak tertahan di cache browser
+  const dasar = slug(namaBaru) + '-e' + Date.now().toString(36);
+  const namaFoto = i => dasar + (i ? '-' + (i + 1) : '') + '.webp';
+  const namaFrame = i => dasar + '-360-' + String(i + 1).padStart(2, '0') + '.webp';
+  const tugas = [
+    ...foto.map((f, i) => ({ file: f, nama: namaFoto(i), sisi: UKURAN_FOTO })),
+    ...putar.map((f, i) => ({ file: f, nama: namaFrame(i), sisi: UKURAN_360 }))
+  ];
+
+  btn.disabled = true; bar.hidden = false; bar.max = tugas.length + 1; bar.value = 0;
+  pesanEdit('Menyiapkan…', false);
+  try {
+    for (let i = 0; i < tugas.length; i++) {
+      pesanEdit('Mengunggah foto ' + (i + 1) + ' dari ' + tugas.length + '…', false);
+      await unggah(tugas[i].nama, await keWebp(tugas[i].file, tugas[i].sisi));
+      bar.value = i + 1;
+    }
+    pesanEdit('Menyimpan perubahan…', false);
+    const hasil = await panggil('editProduk', {
+      nama: produkEdit.nama,
+      namaBaru,
+      detail: $('eDetail').value,
+      gambar: foto.map((_, i) => namaFoto(i)).join('|'),
+      putar360: putar.length ? dasar + '-360|' + putar.length : '',
+      hapus360: $('eHapus360').checked && !putar.length
+    });
+    bar.value = bar.max;
+    $('editDlg').close();
+    await muatDaftar();
+    muatDashboard();
+    const p = hasil.pindah || {};
+    alert((ganti ? 'Nama diganti menjadi "' + namaBaru + '" (' + (p.pesanan || 0) + ' pesanan dan ' + (p.favorit || 0) + ' favorit ikut dipindah).' : 'Perubahan "' + namaBaru + '" tersimpan.') + (tugas.length ? '\nFoto baru butuh sekitar 1 menit untuk tampil di website.' : ''));
+  } catch (err) {
+    pesanEdit('Gagal: ' + err.message, true);
     btn.disabled = false;
   }
 });
