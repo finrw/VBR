@@ -59,6 +59,10 @@
   .hs { display: grid; grid-template-columns: 1fr 96px 70px auto; gap: 6px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
   .hs input { padding: 7px 8px; border: 1.5px solid var(--line); border-radius: 8px; font: inherit; width: 100%; }
   .hs button, .pes select { padding: 6px 10px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); font: inherit; }
+  .cari-pes { display: flex; gap: 8px; margin-bottom: 4px; }
+  .cari-pes input { flex: 1; min-width: 0; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; background: #fff; }
+  .cari-pes input:focus, .cari-pes select:focus { outline: none; border-color: var(--accent); }
+  .cari-pes select { flex: 0 0 auto; width: 132px; padding: 10px 8px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; background: #fff; }
   .pes { padding: 10px 0; border-top: 1px solid var(--line); font-size: .9rem; }
   .pes small { display: block; color: var(--muted); overflow-wrap: anywhere; }
   .atasan { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--muted); font-size: .85rem; }
@@ -91,7 +95,16 @@
       <button type="button" data-tab="produk">Produk &amp; stok</button>
     </nav>
     <div id="tabPesanan">
-    <section class="kartu"><h2>Pesanan</h2><div id="pesananBox">Memuat…</div></section>
+    <section class="kartu"><h2>Pesanan</h2>
+      <div class="cari-pes" role="search">
+        <input type="search" id="cariPes" placeholder="Cari kode pesanan, nama, HP, resi" aria-label="Cari pesanan" autocomplete="off" enterkeyhint="search">
+        <select id="filterStatus" aria-label="Filter status">
+          <option value="">Semua status</option><option value="Baru">Baru</option><option value="Dikemas">Dikemas</option>
+          <option value="Dikirim">Dikirim</option><option value="Selesai">Selesai</option><option value="Dibatalkan">Dibatalkan</option>
+        </select>
+      </div>
+      <p class="info" id="infoCari" role="status"></p>
+      <div id="pesananBox">Memuat…</div></section>
     </div>
     <div id="tabProduk" hidden>
     <section class="kartu"><h2>Ringkasan stok</h2><div class="kpi" id="kpi"></div></section>
@@ -311,10 +324,20 @@ async function hapus(nama) {
 const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const STATUS = [['Baru', 'Pesanan baru'], ['Dikemas', 'Dikemas'], ['Dikirim', 'Dikirim'], ['Dibatalkan', 'Dibatalkan']];
 
+let seqDash = 0;
 async function muatDashboard() {
-  try { gambarDashboard(await panggil('dashboard')); tandaiSinkron(); }
-  catch (e) { $('infoSync').textContent = 'Gagal sinkron: ' + e.message; }
+  const no = ++seqDash;
+  try {
+    const d = await panggil('dashboard', { cari: $('cariPes').value.trim(), status: $('filterStatus').value });
+    if (no !== seqDash) return;   // ada permintaan yang lebih baru (admin masih mengetik)
+    gambarDashboard(d); tandaiSinkron();
+  }
+  catch (e) { if (no === seqDash) $('infoSync').textContent = 'Gagal sinkron: ' + e.message; }
 }
+let timerCari = 0;
+$('cariPes').addEventListener('input', () => { clearTimeout(timerCari); timerCari = setTimeout(muatDashboard, 400); });
+$('cariPes').addEventListener('search', () => { clearTimeout(timerCari); muatDashboard(); });
+$('filterStatus').addEventListener('change', muatDashboard);
 
 function gambarDashboard(d) {
   const isi = d.produk.filter(p => p.harga !== '' && p.stok !== '');
@@ -407,7 +430,11 @@ function gambarDashboard(d) {
     }
     pb.appendChild(r);
   });
-  if (!d.pesanan.length) pb.textContent = 'Belum ada pesanan.';
+  const cariAktif = !!($('cariPes').value.trim() || $('filterStatus').value);
+  if (!d.pesanan.length) pb.textContent = cariAktif ? 'Tidak ada pesanan yang cocok.' : 'Belum ada pesanan.';
+  $('infoCari').textContent = cariAktif
+    ? d.jumlah + ' pesanan cocok' + (d.jumlah > d.pesanan.length ? ' (menampilkan ' + d.pesanan.length + ' terbaru, persempit pencarian)' : '')
+    : '';
 }
 
 /* ---------- Foto: ubah ke webp, unggah ---------- */
