@@ -54,6 +54,18 @@
   .v-atas input[type=number] { width: 84px; padding: 10px 8px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; }
   .v-stoklama { white-space: nowrap; font-size: .85rem; color: var(--muted); }
   .v-baris label { margin-top: 8px; font-weight: 400; font-size: .9rem; }
+  .hs-promo { padding: 0 0 10px; font-size: .85rem; color: var(--muted); }
+  .hs-promo.aktif { color: var(--ok); font-weight: 600; }
+  #vcForm input[type=number], #vcForm input[type=date], #vcForm select, .promo-edit input[type=number], .promo-edit input[type=date] { width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; background: #fff; color: inherit; }
+  #vcForm h3 { margin-top: 18px; }
+  .vc-baris { padding: 12px 0; border-top: 1px solid var(--line); }
+  .vc-baris b { font-size: 1.02rem; }
+  .vc-status { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 700; background: #E8EFEA; color: var(--muted); }
+  .vc-status.aktif { background: var(--ok); color: #fff; }
+  .vc-info { margin-top: 4px; font-size: .88rem; color: var(--muted); }
+  .vc-aksi { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .vc-aksi button { padding: 6px 12px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); font: inherit; }
+  .vc-aksi button.hapus { border-color: var(--bahaya); color: var(--bahaya); }
   .edit { padding: 6px 12px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); }
   .aksi-baris { display: flex; gap: 8px; flex-shrink: 0; }
   .batal { margin-top: 10px; width: 100%; padding: 12px; border: 1.5px solid var(--line); border-radius: 10px; background: transparent; color: inherit; }
@@ -120,6 +132,38 @@
     <div id="tabProduk" hidden>
     <section class="kartu"><h2>Ringkasan stok</h2><div class="kpi" id="kpi"></div></section>
     <section class="kartu"><h2>Harga &amp; stok</h2><div id="hs">Memuat…</div></section>
+    <section class="kartu" id="kartuVoucher">
+      <h2>Voucher</h2>
+      <p class="info">Pembeli mengetik kode saat memesan. Potongan dihitung di server, dan kuota otomatis kembali kalau pesanan dibatalkan. Promo harga coret per produk diatur lewat tombol Edit produk.</p>
+      <div id="vcDaftar">Memuat…</div>
+      <form id="vcForm">
+        <h3 id="vcJudulForm">Buat voucher baru</h3>
+        <label for="vcKode">Kode voucher <small>(huruf, angka, strip; 3-20 karakter)</small></label>
+        <input type="text" id="vcKode" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: HEMAT10" required>
+        <label for="vcJenis">Jenis potongan</label>
+        <select id="vcJenis"><option value="persen">Persen (%)</option><option value="nominal">Nominal (Rp)</option></select>
+        <label for="vcNilai" id="vcNilaiLabel">Besar potongan (%)</label>
+        <input type="number" id="vcNilai" min="1" step="1" inputmode="numeric" required>
+        <div id="vcMaksBaris">
+          <label for="vcMaks">Maksimal potongan (Rp, opsional)</label>
+          <input type="number" id="vcMaks" min="1" step="1" inputmode="numeric">
+        </div>
+        <label for="vcMin">Minimal belanja (Rp, opsional)</label>
+        <input type="number" id="vcMin" min="0" step="1" inputmode="numeric">
+        <label for="vcKuota">Kuota total pemakaian <small>(kosongkan = tanpa batas)</small></label>
+        <input type="number" id="vcKuota" min="1" step="1" inputmode="numeric">
+        <label for="vcPerAkun">Batas pemakaian per akun</label>
+        <input type="number" id="vcPerAkun" min="1" max="99" step="1" value="1" inputmode="numeric">
+        <label for="vcDari">Berlaku dari (opsional)</label>
+        <input type="date" id="vcDari">
+        <label for="vcSampai">Berlaku sampai (opsional, sampai akhir hari itu)</label>
+        <input type="date" id="vcSampai">
+        <label class="cek" for="vcGabung"><input type="checkbox" id="vcGabung" checked> Boleh dipakai di produk yang sedang promo</label>
+        <button class="utama" type="submit" id="vcSimpan">Simpan voucher</button>
+        <button class="batal" type="button" id="vcBatal" hidden>Batal edit</button>
+        <p class="pesan" id="vcPesan" role="status"></p>
+      </form>
+    </section>
     <section class="kartu">
       <h2>Tambah produk</h2>
       <form id="form">
@@ -170,6 +214,18 @@
     <input type="file" id="ePutar" accept="image/*" multiple>
     <p class="info" id="eInfoPutar"></p>
     <label class="cek" id="eHapus360Baris" for="eHapus360"><input type="checkbox" id="eHapus360"> Hapus foto putar 360° produk ini</label>
+
+    <fieldset class="warna-edit promo-edit" id="ePromoBox">
+      <legend>Promo / diskon</legend>
+      <p class="info">Di toko tampil harga normal dicoret dan harga promo dengan label persen. Isi 0 atau kosongkan untuk tanpa promo. Harga normal diatur di "Harga &amp; stok".</p>
+      <label for="eDiskon">Diskon (%)</label>
+      <input type="number" id="eDiskon" min="0" max="99" step="1" inputmode="numeric" placeholder="Contoh: 20">
+      <label for="ePromoMulai">Mulai (opsional)</label>
+      <input type="date" id="ePromoMulai">
+      <label for="ePromoSampai">Berakhir (opsional, sampai akhir hari itu)</label>
+      <input type="date" id="ePromoSampai">
+      <p class="info" id="ePromoInfo"></p>
+    </fieldset>
 
     <fieldset class="warna-edit">
       <legend>Pilihan warna</legend>
@@ -237,6 +293,7 @@ $('formLogin').addEventListener('submit', async e => {
     $('boxAdmin').hidden = false;
     muatDashboard();
     muatDaftar();
+    muatVoucher();
     mulaiSinkron();
   } catch (err) {
     password = '';
@@ -284,7 +341,7 @@ $('btnKeluar').addEventListener('click', () => keluar('Anda sudah keluar.'));
   try {
     const d = await panggil('dashboard');
     $('boxLogin').hidden = true; $('boxAdmin').hidden = false;
-    gambarDashboard(d); tandaiSinkron(); muatDaftar(); mulaiSinkron();
+    gambarDashboard(d); tandaiSinkron(); muatDaftar(); muatVoucher(); mulaiSinkron();
   } catch (e) { simpanToken(''); }
 })();
 
@@ -357,7 +414,9 @@ $('cariPes').addEventListener('input', () => { clearTimeout(timerCari); timerCar
 $('cariPes').addEventListener('search', () => { clearTimeout(timerCari); muatDashboard(); });
 $('filterStatus').addEventListener('change', muatDashboard);
 
+let dashProduk = [];
 function gambarDashboard(d) {
+  dashProduk = d.produk || [];
   const isi = d.produk.filter(p => p.harga !== '' && p.stok !== '');
   const habis = isi.filter(p => Number(p.stok) === 0).length;
   const kpi = d.produk.map(p => ['Stok ' + p.nama, p.stok === '' ? '-' : p.stok]).concat([['Stok habis', habis]]);
@@ -397,6 +456,7 @@ function gambarDashboard(d) {
       [h, s].forEach(el => el.addEventListener('input', () => { b.disabled = false; b.textContent = 'Simpan'; }));
       r.append(n, h, s, b); hs.appendChild(r);
     }
+    if (p.diskon > 0) hs.appendChild(infoPromoEl(p));
   });
   if (!d.produk.length) hs.textContent = 'Belum ada produk.';
 
@@ -404,7 +464,7 @@ function gambarDashboard(d) {
   d.pesanan.forEach(o => {
     const r = document.createElement('div'); r.className = 'pes';
     const a = document.createElement('div');
-    a.textContent = o.id + ' · ' + o.produk + (o.warna ? ' (' + o.warna + ')' : '') + ' x' + o.jumlah + ' · ' + rp(o.total) + (o.ongkir === null ? ' · ongkir belum diisi' : ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir)));
+    a.textContent = o.id + ' · ' + o.produk + (o.warna ? ' (' + o.warna + ')' : '') + ' x' + o.jumlah + ' · ' + rp(o.total) + (o.voucher && o.potongan ? ' (voucher ' + o.voucher + ' -' + rp(o.potongan) + ')' : '') + (o.ongkir === null ? ' · ongkir belum diisi' : ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir)));
     const i = document.createElement('small');
     i.textContent = (o.resi ? o.kurir + ' ' + o.resi + ' · ' : '') + o.waktu + ' · ' + o.pembeli + ' · ' + o.hp + ' · ' + o.alamat;
     if (o.lokasi) { i.append(' · '); const m = document.createElement('a'); m.href = 'https://www.google.com/maps?q=' + o.lokasi; m.target = '_blank'; m.rel = 'noopener'; m.textContent = 'Lihat peta'; i.appendChild(m); }
@@ -594,6 +654,118 @@ function jumlah360Lama(p) {
 function pesanEdit(teks, salah) {
   const p = $('ePesan'); p.className = 'pesan ' + (salah ? 'salah' : 'benar'); p.textContent = teks;
 }
+/* ---------- Promo harga ---------- */
+const hariIniWib = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+const tglIndo = t => { const [y, m, d] = String(t).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }); };
+function infoPromoEl(p) {
+  const hari = hariIniWib();
+  const status = p.promoAktif ? 'sedang berlaku' : (p.promoMulai && hari < p.promoMulai ? 'belum mulai' : 'sudah berakhir');
+  const periode = (p.promoMulai ? ' dari ' + tglIndo(p.promoMulai) : '') + (p.promoSampai ? ' sampai ' + tglIndo(p.promoSampai) : '');
+  const el = document.createElement('div');
+  el.className = 'hs-promo' + (p.promoAktif ? ' aktif' : '');
+  el.textContent = 'Promo -' + p.diskon + '% ' + status + periode + (p.promoAktif ? ' → harga tampil ' + rp(Math.max(1, Math.round(Number(p.harga) * (100 - p.diskon) / 100))) : '');
+  return el;
+}
+let promoSiapEdit = false;
+function perbaruiInfoPromo() {
+  const dp = (dashProduk || []).find(x => produkEdit && x.nama === produkEdit.nama);
+  const pct = Number($('eDiskon').value || 0), normal = dp ? Number(dp.harga) : 0;
+  $('ePromoInfo').textContent = pct >= 1 && pct <= 99 && normal > 0
+    ? 'Harga normal ' + rp(normal) + ' → harga promo ' + rp(Math.max(1, Math.round(normal * (100 - pct) / 100))) + ' (hemat ' + rp(normal - Math.max(1, Math.round(normal * (100 - pct) / 100))) + ')'
+    : (pct >= 1 && !(normal > 0) ? 'Isi harga produk dulu di "Harga & stok" supaya promo bisa dihitung.' : '');
+}
+$('eDiskon').addEventListener('input', perbaruiInfoPromo);
+
+/* ---------- Voucher ---------- */
+let daftarVoucher = [], vcEdit = '';
+async function muatVoucher() {
+  try { const j = await panggil('voucherDaftar'); daftarVoucher = j.voucher || []; gambarVoucher(); }
+  catch (e) { $('vcDaftar').textContent = 'Voucher tidak bisa dimuat: ' + e.message; }
+}
+function statusVoucher(v) {
+  const hari = hariIniWib();
+  if (!v.aktif) return ['Nonaktif', false];
+  if (v.dari && hari < v.dari) return ['Belum mulai', false];
+  if (v.sampai && hari > v.sampai) return ['Berakhir', false];
+  if (v.kuota > 0 && v.terpakai >= v.kuota) return ['Kuota habis', false];
+  return ['Aktif', true];
+}
+function gambarVoucher() {
+  const box = $('vcDaftar'); box.textContent = '';
+  if (!daftarVoucher.length) { box.textContent = 'Belum ada voucher.'; return; }
+  daftarVoucher.forEach(v => {
+    const [st, hidup] = statusVoucher(v);
+    const baris = document.createElement('div'); baris.className = 'vc-baris';
+    const judul = document.createElement('div');
+    const b = document.createElement('b'); b.textContent = v.kode;
+    const lencana = document.createElement('span'); lencana.className = 'vc-status' + (hidup ? ' aktif' : ''); lencana.textContent = st;
+    judul.append(b, lencana);
+    const potong = v.jenis === 'persen' ? '-' + v.nilai + '%' + (v.maks ? ' (maks ' + rp(v.maks) + ')' : '') : '-' + rp(v.nilai);
+    const rincian = [potong, v.min ? 'min. belanja ' + rp(v.min) : '', 'terpakai ' + v.terpakai + (v.kuota ? ' dari ' + v.kuota : ' (tanpa batas)'),
+      v.perAkun + 'x per akun', v.dari ? 'mulai ' + tglIndo(v.dari) : '', v.sampai ? 'sampai ' + tglIndo(v.sampai) : '',
+      v.gabungPromo ? '' : 'tidak berlaku di produk promo'].filter(Boolean).join(' · ');
+    const info = document.createElement('div'); info.className = 'vc-info'; info.textContent = rincian;
+    const aksi = document.createElement('div'); aksi.className = 'vc-aksi';
+    const ubah = document.createElement('button'); ubah.type = 'button'; ubah.textContent = 'Edit'; ubah.setAttribute('aria-label', 'Edit voucher ' + v.kode);
+    ubah.onclick = () => bukaFormVoucher(v);
+    const tog = document.createElement('button'); tog.type = 'button'; tog.textContent = v.aktif ? 'Nonaktifkan' : 'Aktifkan';
+    tog.onclick = async () => { try { await panggil('voucherAktif', { kode: v.kode, aktif: !v.aktif }); await muatVoucher(); } catch (err) { alert(err.message); } };
+    const hps = document.createElement('button'); hps.type = 'button'; hps.className = 'hapus'; hps.textContent = 'Hapus';
+    hps.onclick = async () => {
+      if (!confirm('Hapus voucher ' + v.kode + '? Pesanan lama yang sudah memakainya tetap tercatat.')) return;
+      try { await panggil('voucherHapus', { kode: v.kode }); if (vcEdit === v.kode) resetFormVoucher(); await muatVoucher(); } catch (err) { alert(err.message); }
+    };
+    aksi.append(ubah, tog, hps);
+    baris.append(judul, info, aksi);
+    box.appendChild(baris);
+  });
+}
+function aturFormVoucherJenis() {
+  const persen = $('vcJenis').value === 'persen';
+  $('vcNilaiLabel').textContent = persen ? 'Besar potongan (%)' : 'Besar potongan (Rp)';
+  $('vcNilai').max = persen ? 99 : '';
+  $('vcMaksBaris').hidden = !persen;
+}
+function resetFormVoucher() {
+  $('vcForm').reset(); vcEdit = '';
+  $('vcKode').readOnly = false; $('vcJudulForm').textContent = 'Buat voucher baru';
+  $('vcBatal').hidden = true; $('vcPesan').textContent = '';
+  aturFormVoucherJenis();
+}
+function bukaFormVoucher(v) {
+  vcEdit = v.kode;
+  $('vcKode').value = v.kode; $('vcKode').readOnly = true;
+  $('vcJenis').value = v.jenis; aturFormVoucherJenis();
+  $('vcNilai').value = v.nilai; $('vcMaks').value = v.maks || ''; $('vcMin').value = v.min || '';
+  $('vcKuota').value = v.kuota || ''; $('vcPerAkun').value = v.perAkun;
+  $('vcDari').value = v.dari || ''; $('vcSampai').value = v.sampai || '';
+  $('vcGabung').checked = v.gabungPromo;
+  $('vcJudulForm').textContent = 'Edit voucher ' + v.kode;
+  $('vcBatal').hidden = false; $('vcPesan').textContent = '';
+  $('vcForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('vcJenis').addEventListener('change', aturFormVoucherJenis);
+$('vcKode').addEventListener('input', () => { $('vcKode').value = $('vcKode').value.toUpperCase(); });
+$('vcBatal').addEventListener('click', resetFormVoucher);
+$('vcForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('vcSimpan'), pesan = $('vcPesan');
+  btn.disabled = true; pesan.className = 'pesan'; pesan.textContent = 'Menyimpan…';
+  try {
+    await panggil('voucherSimpan', {
+      kode: $('vcKode').value, jenis: $('vcJenis').value, nilai: $('vcNilai').value, maks: $('vcMaks').value, min: $('vcMin').value,
+      kuota: $('vcKuota').value, perAkun: $('vcPerAkun').value, dari: $('vcDari').value, sampai: $('vcSampai').value, gabungPromo: $('vcGabung').checked
+    });
+    const kode = $('vcKode').value;
+    resetFormVoucher();
+    await muatVoucher();
+    $('vcPesan').className = 'pesan benar'; $('vcPesan').textContent = 'Voucher ' + kode + ' tersimpan.';
+  } catch (err) {
+    pesan.className = 'pesan salah'; pesan.textContent = 'Gagal: ' + err.message;
+  } finally { btn.disabled = false; }
+});
+aturFormVoucherJenis();
+
 /* Baris pilihan warna di dialog Edit. Warna yang sudah ada: nama dikunci dan stok dikelola server. */
 function barisVarian(v) {
   const row = document.createElement('div'); row.className = 'v-baris'; row._v = v;
@@ -629,6 +801,13 @@ $('eTambahWarna').addEventListener('click', () => {
 
 function bukaEdit(p) {
   produkEdit = p;
+  const dp = (dashProduk || []).find(x => x.nama === p.nama);
+  promoSiapEdit = !!dp;   // data promo asli (termasuk yang belum mulai/berakhir) berasal dari dashboard
+  $('ePromoBox').hidden = !dp;
+  $('eDiskon').value = dp && dp.diskon > 0 ? dp.diskon : '';
+  $('ePromoMulai').value = dp ? (dp.promoMulai || '') : '';
+  $('ePromoSampai').value = dp ? (dp.promoSampai || '') : '';
+  perbaruiInfoPromo();
   const vbox = $('eVarian'); vbox.textContent = '';
   (p.varian || []).forEach(v => vbox.appendChild(barisVarian({ warna: v.warna, stok: v.stok, gambar: v.gambar, putar360: v.putar360, lama: true })));
   $('eTambahWarna').hidden = vbox.children.length >= 6;
@@ -659,6 +838,9 @@ $('formEdit').addEventListener('submit', async e => {
   const ganti = namaBaru !== produkEdit.nama;
   if (!namaBaru || !slug(namaBaru)) return pesanEdit('Nama produk harus berisi huruf atau angka.', true);
   if (ganti && daftarProduk.some(p => p.nama !== produkEdit.nama && p.nama.toLowerCase() === namaBaru.toLowerCase())) return pesanEdit('Sudah ada produk dengan nama itu.', true);
+  const diskon = Number($('eDiskon').value || 0);
+  if (promoSiapEdit && (!Number.isInteger(diskon) || diskon < 0 || diskon > 99)) return pesanEdit('Diskon harus bilangan bulat 0 sampai 99 (persen).', true);
+  if (promoSiapEdit && $('ePromoMulai').value && $('ePromoSampai').value && $('ePromoMulai').value > $('ePromoSampai').value) return pesanEdit('Tanggal mulai promo harus sebelum tanggal berakhir.', true);
   const foto = [...$('eFoto').files];
   const putar = urut($('ePutar').files);
   if (putar.length === 1) return pesanEdit('Foto 360° minimal 2 foto (disarankan 24).', true);
@@ -715,7 +897,8 @@ $('formEdit').addEventListener('submit', async e => {
       putar360: putar.length ? dasar + '-360|' + putar.length : '',
       hapus360: $('eHapus360').checked && !putar.length,
       varianUbah: (produkEdit.varian || []).length > 0 || varian.length > 0,
-      varian
+      varian,
+      promoUbah: promoSiapEdit, diskon, promoMulai: $('ePromoMulai').value, promoSampai: $('ePromoSampai').value
     });
     bar.value = bar.max;
     $('editDlg').close();

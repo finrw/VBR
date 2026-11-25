@@ -339,6 +339,16 @@
   .cmp-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .fav-btn { flex: 0 0 46px; min-height: 38px; padding: 0; border: 1.5px solid var(--pink); border-radius: 6px; background: #fff; color: var(--pink); font-size: 1.2rem; line-height: 1; cursor: pointer; }
   .fav-btn[aria-pressed="true"] { background: var(--pink); color: #fff; }
+  .coret-kartu { margin-top: 2px; font-size: .82rem; color: var(--muted); }
+  .coret-kartu s, .d-coret s { color: var(--muted); }
+  .badge-diskon { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--pink); color: #fff; font-size: .75rem; font-weight: 700; vertical-align: middle; }
+  .d-coret { margin: 10px 0 0; font-size: .95rem; }
+  .d-promo-akhir { display: block; margin-top: 2px; color: var(--pink); font-weight: 600; }
+  .d-voucher { margin-top: 10px; }
+  .d-voucher-baris { display: flex; gap: 8px; margin-top: 4px; }
+  .d-voucher-baris input { flex: 1; min-width: 0; width: auto; text-transform: uppercase; }
+  .btn-vc { flex: 0 0 auto; padding: 0 18px; min-height: 44px; border: 1.5px solid var(--accent); border-radius: 8px; background: #fff; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+  .btn-vc:disabled { opacity: .6; }
   .warna-kartu { margin-top: 2px; font-size: .8rem; color: var(--muted); }
   .d-warna { margin: 12px 0 14px; }
   .d-warna-label { margin: 0 0 6px; font-size: .9rem; color: var(--muted); }
@@ -726,6 +736,10 @@ function tampilkan(daftar) {
     info.append(h, ringkas);
     if ((p.varian || []).length) info.appendChild(Object.assign(document.createElement('p'), { className: 'warna-kartu', textContent: 'Warna: ' + p.varian.map(v => v.warna).join(', ') }));
     if (p.ulasan > 0) info.appendChild(Object.assign(document.createElement('p'), { className: 'rating-kartu', textContent: teksRating(p) }));
+    const cr = document.createElement('p');
+    cr.className = 'coret-kartu';
+    isiCoret(cr, p);
+    if (!cr.hidden) info.appendChild(cr);
     if (p.harga !== '' && p.harga !== undefined) {
       const hg = document.createElement('p');
       hg.className = 'harga';
@@ -959,7 +973,7 @@ async function segarkanStok() {
     const d = await ambilData();
     (d.produk || []).forEach(n => {
       const lama = semuaProduk.find(x => x.nama === n.nama);
-      if (lama) { lama.stok = n.stok; lama.status = n.status; lama.harga = n.harga; lama.rating = n.rating; lama.ulasan = n.ulasan; lama.varian = n.varian || []; }
+      if (lama) { lama.stok = n.stok; lama.status = n.status; lama.harga = n.harga; lama.rating = n.rating; lama.ulasan = n.ulasan; lama.varian = n.varian || []; lama.hargaAsli = n.hargaAsli || ''; lama.diskon = n.diskon || 0; lama.promoSampai = n.promoSampai || ''; }
     });
     const q = $('cari').value.trim().toLowerCase();
     tampilkan(semuaProduk.filter(x => x.nama.toLowerCase().includes(q)));
@@ -968,6 +982,8 @@ async function segarkanStok() {
 function perbaruiInfoStok(p) {
   const box = $('dBeli'), h = box.querySelector('.d-harga');
   if (h && p.harga !== '') h.textContent = rp(Number(p.harga)) + (infoStok(p) ? ' · ' + infoStok(p) : '');
+  const cr = box.querySelector('.d-coret'); if (cr) isiCoret(cr, p);
+  const pa = box.querySelector('.d-promo-akhir'); if (pa) { pa.textContent = teksPromoAkhir(p); pa.hidden = !pa.textContent; }
   const q = box.querySelector('input[type=number]');
   if (q && Number(p.stok) > 0) q.max = Math.min(99, Number(p.stok));
   const k = box.querySelector('button[type=submit]');
@@ -1034,7 +1050,7 @@ function gambarBanding() {
     th.appendChild(buatFoto(p, 'cmp-foto'));
     th.appendChild(mk('b', { textContent: p.nama }));
     if (p.ulasan > 0) th.appendChild(mk('span', { className: 'cmp-meta', textContent: teksRating(p) }));
-    if (p.harga !== '' && p.harga !== undefined) th.appendChild(mk('span', { className: 'cmp-harga', textContent: rp(p.harga) }));
+    if (p.harga !== '' && p.harga !== undefined) th.appendChild(mk('span', { className: 'cmp-harga', textContent: rp(p.harga) + (p.diskon ? ' (-' + p.diskon + '%)' : '') }));
     const st = infoStok(p); if (st) th.appendChild(mk('span', { className: 'cmp-meta', textContent: st }));
     th.appendChild(mk('button', { type: 'button', textContent: 'Lihat detail', onclick: () => { $('cmpDlg').close(); bukaDetail(p); } }));
     tr0.appendChild(th);
@@ -1158,6 +1174,7 @@ function bukaInvoice(o) {
   box.appendChild(tabel);
 
   const jml = mk('div', { className: 'inv-total' });
+  if (Number(o.potongan) > 0) jml.append(baris('Subtotal', rp(satuan * jumlah)), baris('Voucher ' + o.voucher, '-' + rp(o.potongan)));
   jml.append(baris('Total barang', rp(total)), baris('Ongkir', adaOngkir ? rp(o.ongkir) : 'Menunggu diisi admin'),
     baris('Total bayar', adaOngkir ? rp(total + Number(o.ongkir)) : 'Belum bisa dihitung'));
   box.appendChild(jml);
@@ -1170,6 +1187,21 @@ elBd('invTutup').addEventListener('click', () => elBd('invDlg').close());
 elBd('invDlg').addEventListener('click', e => { if (e.target === elBd('invDlg')) elBd('invDlg').close(); });
 elBd('invDlg').addEventListener('close', () => document.body.classList.remove('cetak-inv'));
 window.addEventListener('afterprint', () => document.body.classList.remove('cetak-inv'));
+
+/* Promo: p.harga = harga yang dibayar, p.hargaAsli = harga normal (dicoret), p.diskon = persen, p.promoSampai = yyyy-MM-dd */
+function isiCoret(el, p) {
+  el.textContent = '';
+  el.hidden = !(p.hargaAsli && p.diskon > 0);
+  if (el.hidden) return;
+  const s = document.createElement('s'); s.textContent = rp(p.hargaAsli);
+  const b = document.createElement('span'); b.className = 'badge-diskon'; b.textContent = '-' + p.diskon + '%';
+  el.append(s, ' ', b);
+}
+function teksPromoAkhir(p) {
+  if (!p.promoSampai || !(p.diskon > 0)) return '';
+  const [y, m, d] = String(p.promoSampai).split('-').map(Number);
+  return 'Promo sampai ' + new Date(y, m - 1, d).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 /* Pilihan warna: tiap warna punya foto, foto 360°, dan stok sendiri (kolom varian di sheet Produk).
    pandangan() membuat salinan produk dengan foto/360/stok milik warna yang dipilih; foto kosong = pakai foto produk. */
@@ -1870,7 +1902,8 @@ function gambarPesananPelanggan(daftar) {
     row.append(
       mk('b', { textContent:String(o.produk) + (o.warna ? ' (' + o.warna + ')' : '') + ' × ' + String(o.jumlah) }),
       mk('small', { textContent:String(o.id) + ' · ' + String(o.waktu || '') + ' · ' + String(o.status) }),
-      mk('small', { textContent:ringkasBayar(o) }));
+      mk('small', { textContent:ringkasBayar(o) }),
+      ...(o.voucher && o.potongan ? [mk('small', { textContent:'Voucher ' + o.voucher + ': -' + rp(o.potongan) })] : []));
     if (o.resi && (o.status === 'Dikemas' || o.status === 'Dikirim' || o.status === 'Selesai')) {
       row.appendChild(mk('small', { textContent:'Kurir: ' + (o.kurir || '-') + ' · Resi: ' + o.resi }));
       if (o.status !== 'Selesai') {
@@ -2096,8 +2129,10 @@ function buatBeli(p) {
   bersihkanCaptcha();
   const harga = Number(p.harga);
   const bisa = p.harga !== '' && harga > 0 && p.status && p.status !== 'Habis';
+  const cr = mk('p', { className: 'd-coret' }); isiCoret(cr, p); box.appendChild(cr);
   box.appendChild(mk('p', { className: 'd-harga', textContent: p.harga !== '' ? rp(harga) + (infoStok(p) ? ' · ' + infoStok(p) : '') : 'Hubungi admin untuk harga' }));
   if (p.harga !== '') box.appendChild(mk('small', { className: 'catatan-harga', textContent: 'Harga sudah termasuk PPN. Belum termasuk ongkir.' }));
+  const pa = mk('small', { className: 'd-promo-akhir', textContent: teksPromoAkhir(p) }); pa.hidden = !pa.textContent; box.appendChild(pa);
 
   const wa = (teks, label) => mk('a', { className: 'btn-wa', href: waLink(teks), target: '_blank', rel: 'noopener', textContent: label, hidden: !WA_ADMIN });
   if (!bisa) {
@@ -2137,20 +2172,50 @@ function buatBeli(p) {
   const gar = mk('input', { type: 'checkbox', required: true });
   const garL = mk('label', { className: 'garansi' });
   garL.append(gar, document.createTextNode('Saya mengerti: garansi hanya berlaku jika ada video unboxing yang direkam tanpa terputus sejak paket belum dibuka.'));
-  form.append(total, garL, humanBox, cap, kirim);
+  let voucher = null;   // {kode, potongan} setelah kode voucher dicek server
+  const vcWrap = mk('div', { className: 'd-voucher' });
+  const vcLabel = mk('label', { htmlFor: 'vcKode', textContent: 'Kode voucher (opsional)' });
+  const vcBaris = mk('div', { className: 'd-voucher-baris' });
+  const vc = mk('input', { type: 'text', id: 'vcKode', maxLength: 20, autocomplete: 'off', autocapitalize: 'characters', spellcheck: false, placeholder: 'Contoh: HEMAT10' });
+  const vcBtn = mk('button', { type: 'button', className: 'btn-vc', textContent: 'Pakai' });
+  const vcInfo = mk('p', { className: 'd-pesan', role: 'status' });
+  vcBaris.append(vc, vcBtn);
+  vcWrap.append(vcLabel, vcBaris, vcInfo);
+  form.append(vcWrap, total, garL, humanBox, cap, kirim);
   box.append(form, waBanyak, ket);
 
   const tulis = (t, salah) => { ket.className = 'd-pesan ' + (salah ? 'salah' : 'benar'); ket.textContent = t; };
   const segarkan = () => {
     const n = parseInt(qty.value, 10) || 1, banyak = n > BATAS_QTY;
-    total.textContent = 'Total: ' + rp(harga * Math.max(n, 1));
+    const sub = harga * Math.max(n, 1), pot = (voucher && !banyak) ? voucher.potongan : 0;
+    total.textContent = pot ? 'Subtotal ' + rp(sub) + ' · Voucher ' + voucher.kode + ' -' + rp(pot) + ' · Total: ' + rp(sub - pot) : 'Total: ' + rp(sub);
+    vcWrap.hidden = banyak;
     total.append(mk('small', { textContent: 'Harga sudah termasuk PPN, belum termasuk ongkir. Ongkir diisi admin setelah pesanan masuk.' }));
     [nm, hp, hp2, al].forEach(el => { el.closest('label').hidden = banyak; });
     cap.hidden = kirim.hidden = garL.hidden = humanBox.hidden = banyak;
     waBanyak.hidden = !banyak || !WA_ADMIN;
     waBanyak.href = waLink('Halo admin VBR, saya mau pesan ' + n + ' unit ' + p.nama + '.');
   };
-  qty.addEventListener('input', segarkan);
+  const tulisVc = (t, salah) => { vcInfo.className = 'd-pesan ' + (t ? (salah ? 'salah' : 'benar') : ''); vcInfo.textContent = t; };
+  const terapkanVc = async () => {
+    const kode = vc.value.trim().toUpperCase();
+    voucher = null;
+    if (!kode) { tulisVc('', false); segarkan(); return; }
+    const n = parseInt(qty.value, 10) || 1;
+    if (n > BATAS_QTY) { segarkan(); return; }
+    vcBtn.disabled = true; tulisVc('Memeriksa kode…', false);
+    try {
+      const r = await panggilAPI('cekVoucher', { customerToken, kode, produk: p.nama, warna: p.warna || '', jumlah: n, harga: p.harga });
+      voucher = { kode: r.kode, potongan: r.potongan };
+      tulisVc('Voucher ' + r.kode + ' dipakai, hemat ' + rp(r.potongan) + '.', false);
+    } catch (err) { tulisVc(err.message, true); }
+    vcBtn.disabled = false;
+    segarkan();
+  };
+  vcBtn.addEventListener('click', terapkanVc);
+  vc.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); terapkanVc(); } });
+  vc.addEventListener('input', () => { vc.value = vc.value.toUpperCase(); if (voucher) { voucher = null; tulisVc('', false); segarkan(); } });
+  qty.addEventListener('input', () => { segarkan(); if (voucher) terapkanVc(); });
   segarkan();
 
   if (!TURNSTILE_SITEKEY || !window.turnstile) {
@@ -2167,17 +2232,18 @@ function buatBeli(p) {
     if (!human.checked) return tulis('Centang verifikasi “Saya bukan robot” terlebih dahulu.', true);
     if (normHp(hp.value) !== normHp(hp2.value)) return tulis('Nomor HP dan ketik ulangnya tidak sama. Periksa lagi.', true);
     if (!tk) return tulis('Selesaikan verifikasi captcha dulu.', true);
+    if (vc.value.trim() && !voucher) return tulis('Tekan "Pakai" dulu untuk kode voucher, atau kosongkan kolomnya.', true);
     kirim.disabled = true;
     tulis('Mengirim pesanan…', false);
     try {
       const res = await fetch(API_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ aksi: 'pesan', customerToken, produk: p.nama, warna: p.warna || '', jumlah: Number(qty.value), pembeli: nm.value, hp: hp.value, alamat: al.value, garansi: gar.checked, captcha: tk })
+        body: JSON.stringify({ aksi: 'pesan', customerToken, produk: p.nama, warna: p.warna || '', harga: p.harga, voucher: voucher ? voucher.kode : '', jumlah: Number(qty.value), pembeli: nm.value, hp: hp.value, alamat: al.value, garansi: gar.checked, captcha: tk })
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.pesan || 'Pesanan gagal dikirim');
       form.hidden = true;
-      tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + ' (sudah termasuk PPN, belum termasuk ongkir). Bayar dalam 1 jam, jika tidak pesanan dibatalkan otomatis. Kirim ID ini ke admin untuk pembayaran.', false);
+      tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + (j.potongan ? ' (voucher ' + j.voucher + ' hemat ' + rp(j.potongan) + ')' : '') + ' (sudah termasuk PPN, belum termasuk ongkir). Bayar dalam 1 jam, jika tidak pesanan dibatalkan otomatis. Kirim ID ini ke admin untuk pembayaran.', false);
       if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + (j.warna ? ' (warna ' + j.warna + ')' : '') + ' x' + j.jumlah + '\nTotal: ' + rp(j.total) + ' (sudah termasuk PPN, belum termasuk ongkir)', 'Kirim konfirmasi ke admin'));
     } catch (err) {
       tulis(err.message, true);
@@ -2188,7 +2254,7 @@ function buatBeli(p) {
       }
       if (widgetId !== null) turnstile.reset(widgetId);
       kirim.disabled = false;
-      if (/stok/i.test(err.message)) { await segarkanStok(); perbaruiInfoStok(pandangan(semuaProduk.find(x => x.nama === p.nama) || p, p.warna)); }
+      if (/stok|harga produk berubah/i.test(err.message)) { await segarkanStok(); perbaruiInfoStok(pandangan(semuaProduk.find(x => x.nama === p.nama) || p, p.warna)); }
     }
   });
 }
