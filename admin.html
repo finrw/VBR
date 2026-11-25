@@ -43,6 +43,17 @@
   .baris:first-of-type { border-top: none; }
   .baris span { overflow-wrap: anywhere; }
   .hapus { padding: 6px 12px; border: 1.5px solid var(--bahaya); border-radius: 8px; background: transparent; color: var(--bahaya); }
+  .hs-varian { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 0 0 10px; font-size: .85rem; }
+  .hs-varian label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+  .hs-varian input { width: 76px; padding: 6px 8px; border: 1.5px solid var(--line); border-radius: 8px; font: inherit; }
+  fieldset.warna-edit { margin-top: 14px; padding: 10px 12px 12px; border: 1.5px solid var(--line); border-radius: 10px; }
+  fieldset.warna-edit legend { padding: 0 6px; font-weight: 700; }
+  .v-baris { margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #FAFBFA; }
+  .v-atas { display: flex; gap: 8px; align-items: center; }
+  .v-atas input[type=text] { flex: 1; min-width: 0; }
+  .v-atas input[type=number] { width: 84px; padding: 10px 8px; border: 1.5px solid var(--line); border-radius: 10px; font: inherit; }
+  .v-stoklama { white-space: nowrap; font-size: .85rem; color: var(--muted); }
+  .v-baris label { margin-top: 8px; font-weight: 400; font-size: .9rem; }
   .edit { padding: 6px 12px; border: 1.5px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); }
   .aksi-baris { display: flex; gap: 8px; flex-shrink: 0; }
   .batal { margin-top: 10px; width: 100%; padding: 12px; border: 1.5px solid var(--line); border-radius: 10px; background: transparent; color: inherit; }
@@ -159,6 +170,13 @@
     <input type="file" id="ePutar" accept="image/*" multiple>
     <p class="info" id="eInfoPutar"></p>
     <label class="cek" id="eHapus360Baris" for="eHapus360"><input type="checkbox" id="eHapus360"> Hapus foto putar 360° produk ini</label>
+
+    <fieldset class="warna-edit">
+      <legend>Pilihan warna</legend>
+      <p class="info">Opsional. Tiap warna punya foto, foto 360°, dan stok sendiri. Warna tanpa foto memakai foto produk di atas. Stok warna yang sudah ada diubah lewat "Harga &amp; stok".</p>
+      <div id="eVarian"></div>
+      <button class="batal" type="button" id="eTambahWarna">+ Tambah warna</button>
+    </fieldset>
 
     <button class="utama" type="submit" id="eSimpan">Simpan perubahan</button>
     <button class="batal" type="button" id="eBatal">Batal</button>
@@ -354,17 +372,31 @@ function gambarDashboard(d) {
   const hs = $('hs'); hs.textContent = ''; kotorWaktu = 0;
   d.produk.forEach(p => {
     const r = document.createElement('div'); r.className = 'hs';
+    const adaVarian = (p.varian || []).length > 0, vin = [];
     const n = document.createElement('span'); n.textContent = p.nama;
     const h = document.createElement('input'); h.type = 'number'; h.min = 0; h.placeholder = 'Harga'; h.value = p.harga;
-    const s = document.createElement('input'); s.type = 'number'; s.min = 0; s.step = 1; s.placeholder = 'Stok'; s.value = p.stok;
+    const s = adaVarian ? Object.assign(document.createElement('span'), { textContent: 'Total ' + p.stok }) : document.createElement('input');
+    if (!adaVarian) { s.type = 'number'; s.min = 0; s.step = 1; s.placeholder = 'Stok'; s.value = p.stok; }
     const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Simpan';
     b.onclick = async () => {
       b.disabled = true;
-      try { await panggil('setHargaStok', { nama: p.nama, harga: h.value, stok: s.value }); b.textContent = 'Tersimpan'; muatDashboard(); }
+      try { await panggil('setHargaStok', adaVarian ? { nama: p.nama, harga: h.value, varian: vin.map(x => ({ warna: x.dataset.warna, stok: x.value })) } : { nama: p.nama, harga: h.value, stok: s.value }); b.textContent = 'Tersimpan'; muatDashboard(); }
       catch (err) { alert(err.message); b.disabled = false; }
     };
-    [h, s].forEach(el => el.addEventListener('input', () => { b.disabled = false; b.textContent = 'Simpan'; }));
-    r.append(n, h, s, b); hs.appendChild(r);
+    if (adaVarian) {
+      const vr = document.createElement('div'); vr.className = 'hs-varian';
+      p.varian.forEach(v => {
+        const l = document.createElement('label'); l.append('Stok ' + v.warna + ' ');
+        const i = document.createElement('input'); i.type = 'number'; i.min = 0; i.step = 1; i.value = v.stok; i.dataset.warna = v.warna;
+        i.setAttribute('aria-label', 'Stok warna ' + v.warna);
+        l.appendChild(i); vr.appendChild(l); vin.push(i);
+      });
+      [h].concat(vin).forEach(el => el.addEventListener('input', () => { b.disabled = false; b.textContent = 'Simpan'; }));
+      r.append(n, h, s, b); hs.append(r, vr);
+    } else {
+      [h, s].forEach(el => el.addEventListener('input', () => { b.disabled = false; b.textContent = 'Simpan'; }));
+      r.append(n, h, s, b); hs.appendChild(r);
+    }
   });
   if (!d.produk.length) hs.textContent = 'Belum ada produk.';
 
@@ -372,7 +404,7 @@ function gambarDashboard(d) {
   d.pesanan.forEach(o => {
     const r = document.createElement('div'); r.className = 'pes';
     const a = document.createElement('div');
-    a.textContent = o.id + ' · ' + o.produk + ' x' + o.jumlah + ' · ' + rp(o.total) + (o.ongkir === null ? ' · ongkir belum diisi' : ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir)));
+    a.textContent = o.id + ' · ' + o.produk + (o.warna ? ' (' + o.warna + ')' : '') + ' x' + o.jumlah + ' · ' + rp(o.total) + (o.ongkir === null ? ' · ongkir belum diisi' : ' + ongkir ' + rp(o.ongkir) + ' = ' + rp(Number(o.total) + Number(o.ongkir)));
     const i = document.createElement('small');
     i.textContent = (o.resi ? o.kurir + ' ' + o.resi + ' · ' : '') + o.waktu + ' · ' + o.pembeli + ' · ' + o.hp + ' · ' + o.alamat;
     if (o.lokasi) { i.append(' · '); const m = document.createElement('a'); m.href = 'https://www.google.com/maps?q=' + o.lokasi; m.target = '_blank'; m.rel = 'noopener'; m.textContent = 'Lihat peta'; i.appendChild(m); }
@@ -562,8 +594,44 @@ function jumlah360Lama(p) {
 function pesanEdit(teks, salah) {
   const p = $('ePesan'); p.className = 'pesan ' + (salah ? 'salah' : 'benar'); p.textContent = teks;
 }
+/* Baris pilihan warna di dialog Edit. Warna yang sudah ada: nama dikunci dan stok dikelola server. */
+function barisVarian(v) {
+  const row = document.createElement('div'); row.className = 'v-baris'; row._v = v;
+  const atas = document.createElement('div'); atas.className = 'v-atas';
+  const nama = document.createElement('input'); nama.type = 'text'; nama.className = 'v-nama'; nama.maxLength = 30; nama.placeholder = 'Nama warna, mis. Putih'; nama.value = v.warna; nama.readOnly = !!v.lama;
+  nama.setAttribute('aria-label', 'Nama warna');
+  atas.appendChild(nama);
+  if (v.lama) { const sl = document.createElement('span'); sl.className = 'v-stoklama'; sl.textContent = 'Stok ' + v.stok; atas.appendChild(sl); }
+  else { const st = document.createElement('input'); st.type = 'number'; st.min = 0; st.step = 1; st.className = 'v-stok'; st.placeholder = 'Stok awal'; st.setAttribute('aria-label', 'Stok awal warna ini'); atas.appendChild(st); }
+  const hapus = document.createElement('button'); hapus.type = 'button'; hapus.className = 'hapus'; hapus.textContent = 'Hapus';
+  hapus.onclick = () => {
+    if (v.lama && !confirm('Hapus warna "' + v.warna + '"? Foto dan stok warna ini hilang dari toko.')) return;
+    row.remove(); $('eTambahWarna').hidden = false;
+  };
+  atas.appendChild(hapus);
+  const nf = jumlahFotoLama({ gambar: v.gambar }), n360 = jumlah360Lama({ putar360: v.putar360 });
+  const info = document.createElement('p'); info.className = 'info';
+  info.textContent = (nf ? 'Foto sekarang: ' + nf + ' foto. ' : 'Belum ada foto khusus (memakai foto produk). ') + (n360 ? 'Foto 360° sekarang: ' + n360 + ' foto.' : 'Belum ada foto 360°.');
+  const lf = document.createElement('label'); lf.append('Foto warna ini (kosongkan jika tidak diganti)');
+  const ff = document.createElement('input'); ff.type = 'file'; ff.accept = 'image/*'; ff.multiple = true; ff.className = 'v-foto'; lf.appendChild(ff);
+  const lp = document.createElement('label'); lp.append('Foto putar 360° warna ini (min. 2, disarankan 24)');
+  const fp = document.createElement('input'); fp.type = 'file'; fp.accept = 'image/*'; fp.multiple = true; fp.className = 'v-putar'; lp.appendChild(fp);
+  row.append(atas, info, lf, lp);
+  return row;
+}
+$('eTambahWarna').addEventListener('click', () => {
+  const box = $('eVarian');
+  if (box.children.length >= 6) return;
+  box.appendChild(barisVarian({ warna: '', stok: 0, gambar: '', putar360: '', lama: false }));
+  if (box.children.length >= 6) $('eTambahWarna').hidden = true;
+  box.lastChild.querySelector('.v-nama').focus();
+});
+
 function bukaEdit(p) {
   produkEdit = p;
+  const vbox = $('eVarian'); vbox.textContent = '';
+  (p.varian || []).forEach(v => vbox.appendChild(barisVarian({ warna: v.warna, stok: v.stok, gambar: v.gambar, putar360: v.putar360, lama: true })));
+  $('eTambahWarna').hidden = vbox.children.length >= 6;
   $('eNama').value = p.nama;
   const kode = p.nama.toLowerCase().split(/[^a-z0-9]+/).filter(t => /\d/.test(t)).map(t => t.toUpperCase());
   $('eInfoNama').textContent = Number(p.ulasan) > 0
@@ -606,6 +674,30 @@ $('formEdit').addEventListener('submit', async e => {
     ...putar.map((f, i) => ({ file: f, nama: namaFrame(i), sisi: UKURAN_360 }))
   ];
 
+  // Pilihan warna: tiap warna punya foto & 360° sendiri (nama file memuat nama warna + kode unik)
+  const varian = [], dipakai = {};
+  const barisV = [...$('eVarian').children];
+  for (let i = 0; i < barisV.length; i++) {
+    const el = barisV[i], warna = el.querySelector('.v-nama').value.trim();
+    if (!warna) return pesanEdit('Nama warna wajib diisi (atau hapus barisnya).', true);
+    if (dipakai[warna.toLowerCase()]) return pesanEdit('Nama warna tidak boleh sama: ' + warna, true);
+    dipakai[warna.toLowerCase()] = true;
+    const fotoV = [...el.querySelector('.v-foto').files], putarV = urut(el.querySelector('.v-putar').files);
+    if (putarV.length === 1) return pesanEdit('Foto 360° warna ' + warna + ' minimal 2 foto.', true);
+    if (putarV.length > 99) return pesanEdit('Foto 360° maksimal 99 foto.', true);
+    const vb = dasar + '-' + (slug(warna) || 'w' + (i + 1));
+    let gambar = el._v.gambar || '', putar360 = el._v.putar360 || '';
+    if (fotoV.length) {
+      gambar = fotoV.map((_, k) => vb + (k ? '-' + (k + 1) : '') + '.webp').join('|');
+      fotoV.forEach((f, k) => tugas.push({ file: f, nama: vb + (k ? '-' + (k + 1) : '') + '.webp', sisi: UKURAN_FOTO }));
+    }
+    if (putarV.length) {
+      putar360 = vb + '-360|' + putarV.length;
+      putarV.forEach((f, k) => tugas.push({ file: f, nama: vb + '-360-' + String(k + 1).padStart(2, '0') + '.webp', sisi: UKURAN_360 }));
+    }
+    varian.push({ warna, gambar, putar360, stok: el._v.lama ? el._v.stok : Number(el.querySelector('.v-stok').value || 0) });
+  }
+
   btn.disabled = true; bar.hidden = false; bar.max = tugas.length + 1; bar.value = 0;
   pesanEdit('Menyiapkan…', false);
   try {
@@ -621,7 +713,9 @@ $('formEdit').addEventListener('submit', async e => {
       detail: $('eDetail').value,
       gambar: foto.map((_, i) => namaFoto(i)).join('|'),
       putar360: putar.length ? dasar + '-360|' + putar.length : '',
-      hapus360: $('eHapus360').checked && !putar.length
+      hapus360: $('eHapus360').checked && !putar.length,
+      varianUbah: (produkEdit.varian || []).length > 0 || varian.length > 0,
+      varian
     });
     bar.value = bar.max;
     $('editDlg').close();

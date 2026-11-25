@@ -339,6 +339,15 @@
   .cmp-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .fav-btn { flex: 0 0 46px; min-height: 38px; padding: 0; border: 1.5px solid var(--pink); border-radius: 6px; background: #fff; color: var(--pink); font-size: 1.2rem; line-height: 1; cursor: pointer; }
   .fav-btn[aria-pressed="true"] { background: var(--pink); color: #fff; }
+  .warna-kartu { margin-top: 2px; font-size: .8rem; color: var(--muted); }
+  .d-warna { margin: 12px 0 14px; }
+  .d-warna-label { margin: 0 0 6px; font-size: .9rem; color: var(--muted); }
+  .d-warna-label b { color: var(--ink); }
+  .d-warna-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .d-warna-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-size: .9rem; cursor: pointer; }
+  .d-warna-chip[aria-checked="true"] { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .d-warna-chip.habis { opacity: .65; }
+  .d-swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,.35); flex: 0 0 auto; }
   #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 30; max-width: calc(100% - 32px); padding: 10px 14px; border-radius: 8px; background: var(--ink); color: #fff; font-size: .88rem; }
   #toast[hidden] { display: none; }
   #invDlg { width: min(560px, calc(100% - 16px)); }
@@ -429,6 +438,7 @@
   <div class="d-putar" id="dPutar" hidden></div>
   <div class="d-isi">
     <button class="btn-putar" id="dBtn360" type="button" hidden>Putar 360°</button>
+    <div class="d-warna" id="dWarna" hidden></div>
     <h2 id="dNama"></h2>
     <ul id="dList"></ul>
     <div class="d-beli" id="dBeli"></div>
@@ -714,6 +724,7 @@ function tampilkan(daftar) {
     const ringkas = document.createElement('p');
     ringkas.textContent = barisDetail(p.detail).join(' · ');
     info.append(h, ringkas);
+    if ((p.varian || []).length) info.appendChild(Object.assign(document.createElement('p'), { className: 'warna-kartu', textContent: 'Warna: ' + p.varian.map(v => v.warna).join(', ') }));
     if (p.ulasan > 0) info.appendChild(Object.assign(document.createElement('p'), { className: 'rating-kartu', textContent: teksRating(p) }));
     if (p.harga !== '' && p.harga !== undefined) {
       const hg = document.createElement('p');
@@ -948,7 +959,7 @@ async function segarkanStok() {
     const d = await ambilData();
     (d.produk || []).forEach(n => {
       const lama = semuaProduk.find(x => x.nama === n.nama);
-      if (lama) { lama.stok = n.stok; lama.status = n.status; lama.harga = n.harga; lama.rating = n.rating; lama.ulasan = n.ulasan; }
+      if (lama) { lama.stok = n.stok; lama.status = n.status; lama.harga = n.harga; lama.rating = n.rating; lama.ulasan = n.ulasan; lama.varian = n.varian || []; }
     });
     const q = $('cari').value.trim().toLowerCase();
     tampilkan(semuaProduk.filter(x => x.nama.toLowerCase().includes(q)));
@@ -1141,7 +1152,7 @@ function bukaInvoice(o) {
   const kepala = mk('tr', {});
   ['Produk', 'Jml', 'Harga', 'Subtotal'].forEach(t => kepala.appendChild(mk('th', { scope: 'col', textContent: t })));
   const isi = mk('tr', {});
-  [String(o.produk), String(jumlah), rp(satuan), rp(total)].forEach(t => isi.appendChild(mk('td', { textContent: t })));
+  [String(o.produk) + (o.warna ? ' (' + o.warna + ')' : ''), String(jumlah), rp(satuan), rp(total)].forEach(t => isi.appendChild(mk('td', { textContent: t })));
   const thead = mk('thead', {}), tbody = mk('tbody', {});
   thead.appendChild(kepala); tbody.appendChild(isi); tabel.append(thead, tbody);
   box.appendChild(tabel);
@@ -1160,12 +1171,63 @@ elBd('invDlg').addEventListener('click', e => { if (e.target === elBd('invDlg'))
 elBd('invDlg').addEventListener('close', () => document.body.classList.remove('cetak-inv'));
 window.addEventListener('afterprint', () => document.body.classList.remove('cetak-inv'));
 
+/* Pilihan warna: tiap warna punya foto, foto 360°, dan stok sendiri (kolom varian di sheet Produk).
+   pandangan() membuat salinan produk dengan foto/360/stok milik warna yang dipilih; foto kosong = pakai foto produk. */
+const WARNA_CSS = { putih: '#ffffff', white: '#ffffff', hitam: '#111111', black: '#111111', abu: '#9aa0a6', 'abu-abu': '#9aa0a6', grey: '#9aa0a6', gray: '#9aa0a6', silver: '#c0c0c0', perak: '#c0c0c0', biru: '#1a73e8', blue: '#1a73e8', merah: '#d93025', red: '#d93025', hijau: '#188038', green: '#188038', pink: '#e91e8c', ungu: '#7b3fe4', purple: '#7b3fe4', kuning: '#f9ab00', yellow: '#f9ab00', oranye: '#fa7b17', orange: '#fa7b17', coklat: '#795548', brown: '#795548' };
+let warnaAktif = '';
+function pandangan(p, warna) {
+  const v = (p.varian || []).find(x => x.warna === warna);
+  if (!v) return p;
+  return Object.assign({}, p, { gambar: v.gambar || p.gambar, putar360: v.putar360 || p.putar360, stok: v.stok, status: v.status, warna: v.warna });
+}
+function buatPilihanWarna(p) {
+  const wadah = document.getElementById('dWarna');
+  wadah.textContent = '';
+  const daftar = p.varian || [];
+  wadah.hidden = !daftar.length;
+  if (!daftar.length) return;
+  const label = document.createElement('p');
+  label.className = 'd-warna-label';
+  label.append('Warna: ', Object.assign(document.createElement('b'), { textContent: warnaAktif }));
+  const chips = document.createElement('div');
+  chips.className = 'd-warna-chips';
+  chips.setAttribute('role', 'radiogroup');
+  chips.setAttribute('aria-label', 'Pilih warna');
+  daftar.forEach(v => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'd-warna-chip' + (v.status === 'Habis' ? ' habis' : '');
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(v.warna === warnaAktif));
+    const css = WARNA_CSS[v.warna.toLowerCase()];
+    if (css) { const sw = document.createElement('span'); sw.className = 'd-swatch'; sw.style.background = css; b.appendChild(sw); }
+    b.append(v.warna + (v.status === 'Habis' ? ' (habis)' : ''));
+    b.onclick = () => pilihWarna(p, v.warna);
+    chips.appendChild(b);
+  });
+  wadah.append(label, chips);
+}
+function pilihWarna(p, warna) {
+  warnaAktif = warna;
+  const t = pandangan(p, warna);
+  buatGaleri(t);
+  siapkan360(t);
+  buatBeli(t);
+  buatPilihanWarna(p);
+  const aktif = document.getElementById('dWarna').querySelector('[aria-checked="true"]');
+  if (aktif) aktif.focus();
+}
+
 function bukaDetail(p) {
   produkAktif = p;
-  buatGaleri(p);
-  siapkan360(p);
-  buatBeli(p);
-  segarkanStok().then(() => { if (produkAktif === p && dlg.open) perbaruiInfoStok(p); });
+  const varian = p.varian || [];
+  warnaAktif = varian.length ? (varian.find(v => v.status !== 'Habis') || varian[0]).warna : '';
+  const awal = pandangan(p, warnaAktif);
+  buatGaleri(awal);
+  siapkan360(awal);
+  buatBeli(awal);
+  buatPilihanWarna(p);
+  segarkanStok().then(() => { if (produkAktif === p && dlg.open) perbaruiInfoStok(pandangan(p, warnaAktif)); });
   document.getElementById('dNama').textContent = p.nama;
   let dr = document.getElementById('dRating');
   if (!dr) { dr = document.createElement('p'); dr.id = 'dRating'; dr.className = 'rating-kartu'; document.getElementById('dNama').after(dr); }
@@ -1806,7 +1868,7 @@ function gambarPesananPelanggan(daftar) {
   daftar.forEach(o => {
     const row = mk('div', { className:'akun-order' });
     row.append(
-      mk('b', { textContent:String(o.produk) + ' × ' + String(o.jumlah) }),
+      mk('b', { textContent:String(o.produk) + (o.warna ? ' (' + o.warna + ')' : '') + ' × ' + String(o.jumlah) }),
       mk('small', { textContent:String(o.id) + ' · ' + String(o.waktu || '') + ' · ' + String(o.status) }),
       mk('small', { textContent:ringkasBayar(o) }));
     if (o.resi && (o.status === 'Dikemas' || o.status === 'Dikirim' || o.status === 'Selesai')) {
@@ -1924,7 +1986,7 @@ function gambarPesananPelanggan(daftar) {
           row.append(bar, form);
         }
         row.appendChild(mk('small', { textContent:'Ada komplain atau klaim garansi? Silakan chat admin.' }));
-        if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau menyampaikan komplain / klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin (komplain / klaim garansi)' }));
+        if (WA_ADMIN) row.appendChild(mk('a', { className:'akun-btn', href:waLink('Halo admin VBR, saya mau menyampaikan komplain / klaim garansi.\nID pesanan: ' + o.id + '\nProduk: ' + o.produk + (o.warna ? ' (warna ' + o.warna + ')' : '') + '\nVideo unboxing: ' + o.video), target:'_blank', rel:'noopener', textContent:'Chat admin (komplain / klaim garansi)' }));
       } else {
         row.appendChild(mk('small', { textContent:'Mau klaim garansi? Unggah video unboxing (durasi maksimal 1 menit 30 detik, maks 300 MB). Tombol chat WhatsApp muncul setelah video terunggah.' }));
         row.append(...blokUnggahVideo(o));
@@ -2110,13 +2172,13 @@ function buatBeli(p) {
     try {
       const res = await fetch(API_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ aksi: 'pesan', customerToken, produk: p.nama, jumlah: Number(qty.value), pembeli: nm.value, hp: hp.value, alamat: al.value, garansi: gar.checked, captcha: tk })
+        body: JSON.stringify({ aksi: 'pesan', customerToken, produk: p.nama, warna: p.warna || '', jumlah: Number(qty.value), pembeli: nm.value, hp: hp.value, alamat: al.value, garansi: gar.checked, captcha: tk })
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.pesan || 'Pesanan gagal dikirim');
       form.hidden = true;
       tulis('Pesanan diterima. ID: ' + j.id + ' · Total ' + rp(j.total) + ' (sudah termasuk PPN, belum termasuk ongkir). Bayar dalam 1 jam, jika tidak pesanan dibatalkan otomatis. Kirim ID ini ke admin untuk pembayaran.', false);
-      if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + ' x' + j.jumlah + '\nTotal: ' + rp(j.total) + ' (sudah termasuk PPN, belum termasuk ongkir)', 'Kirim konfirmasi ke admin'));
+      if (WA_ADMIN) box.appendChild(wa('Halo admin VBR, saya sudah memesan.\nID pesanan: ' + j.id + '\nProduk: ' + j.produk + (j.warna ? ' (warna ' + j.warna + ')' : '') + ' x' + j.jumlah + '\nTotal: ' + rp(j.total) + ' (sudah termasuk PPN, belum termasuk ongkir)', 'Kirim konfirmasi ke admin'));
     } catch (err) {
       tulis(err.message, true);
       if (/admin/i.test(err.message) && WA_ADMIN && !box.querySelector('.tambah')) {
@@ -2126,7 +2188,7 @@ function buatBeli(p) {
       }
       if (widgetId !== null) turnstile.reset(widgetId);
       kirim.disabled = false;
-      if (/stok/i.test(err.message)) { await segarkanStok(); perbaruiInfoStok(p); }
+      if (/stok/i.test(err.message)) { await segarkanStok(); perbaruiInfoStok(pandangan(semuaProduk.find(x => x.nama === p.nama) || p, p.warna)); }
     }
   });
 }
