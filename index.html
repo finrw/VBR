@@ -1184,7 +1184,7 @@ function bukaInvoice(o) {
   const kepala = mk('tr', {});
   ['Produk', 'Jml', 'Harga', 'Subtotal'].forEach(t => kepala.appendChild(mk('th', { scope: 'col', textContent: t })));
   const isi = mk('tr', {});
-  [String(o.produk) + (o.warna ? ' (' + o.warna + ')' : ''), String(jumlah), rp(satuan), rp(total)].forEach(t => isi.appendChild(mk('td', { textContent: t })));
+  [String(o.produk) + (o.warna ? ' (' + o.warna + ')' : ''), String(jumlah), rp(satuan), rp(satuan * jumlah)].forEach(t => isi.appendChild(mk('td', { textContent: t })));
   const thead = mk('thead', {}), tbody = mk('tbody', {});
   thead.appendChild(kepala); tbody.appendChild(isi); tabel.append(thead, tbody);
   box.appendChild(tabel);
@@ -2264,7 +2264,7 @@ function buatBeli(p) {
   const segarkan = () => {
     const n = parseInt(qty.value, 10) || 1, banyak = n > BATAS_QTY;
     const sub = harga * Math.max(n, 1), pot = (voucher && !banyak) ? voucher.potongan : 0;
-    total.textContent = pot ? 'Subtotal ' + rp(sub) + ' · Voucher ' + voucher.kode + ' -' + rp(pot) + ' · Total: ' + rp(sub - pot) : 'Total: ' + rp(sub);
+    total.textContent = pot ? 'Subtotal ' + rp(sub) + ' · Voucher ' + voucher.kode + ' -' + rp(pot).replace(' ', '\u00a0') + ' · Total: ' + rp(sub - pot) : 'Total: ' + rp(sub);
     vcWrap.hidden = banyak;
     total.append(mk('small', { textContent: 'Harga sudah termasuk PPN, belum termasuk ongkir. Ongkir diisi admin setelah pesanan masuk.' }));
     [nm, hp, hp2, al].forEach(el => { el.closest('label').hidden = banyak; });
