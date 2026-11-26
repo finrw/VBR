@@ -159,6 +159,7 @@
         <label for="vcSampai">Berlaku sampai (opsional, sampai akhir hari itu)</label>
         <input type="date" id="vcSampai">
         <label class="cek" for="vcGabung"><input type="checkbox" id="vcGabung" checked> Boleh dipakai di produk yang sedang promo</label>
+        <label class="cek" for="vcTampil"><input type="checkbox" id="vcTampil" checked> Tampilkan di toko (pembeli bisa melihat dan menyalin kodenya). Hilangkan centang untuk voucher rahasia yang dibagikan manual.</label>
         <button class="utama" type="submit" id="vcSimpan">Simpan voucher</button>
         <button class="batal" type="button" id="vcBatal" hidden>Batal edit</button>
         <p class="pesan" id="vcPesan" role="status"></p>
@@ -703,7 +704,7 @@ function gambarVoucher() {
     const potong = v.jenis === 'persen' ? '-' + v.nilai + '%' + (v.maks ? ' (maks ' + rp(v.maks) + ')' : '') : '-' + rp(v.nilai);
     const rincian = [potong, v.min ? 'min. belanja ' + rp(v.min) : '', 'terpakai ' + v.terpakai + (v.kuota ? ' dari ' + v.kuota : ' (tanpa batas)'),
       v.perAkun + 'x per akun', v.dari ? 'mulai ' + tglIndo(v.dari) : '', v.sampai ? 'sampai ' + tglIndo(v.sampai) : '',
-      v.gabungPromo ? '' : 'tidak berlaku di produk promo'].filter(Boolean).join(' · ');
+      v.gabungPromo ? '' : 'tidak berlaku di produk promo', v.tampil ? 'tampil di toko' : 'rahasia (tidak tampil di toko)'].filter(Boolean).join(' · ');
     const info = document.createElement('div'); info.className = 'vc-info'; info.textContent = rincian;
     const aksi = document.createElement('div'); aksi.className = 'vc-aksi';
     const ubah = document.createElement('button'); ubah.type = 'button'; ubah.textContent = 'Edit'; ubah.setAttribute('aria-label', 'Edit voucher ' + v.kode);
@@ -740,6 +741,7 @@ function bukaFormVoucher(v) {
   $('vcKuota').value = v.kuota || ''; $('vcPerAkun').value = v.perAkun;
   $('vcDari').value = v.dari || ''; $('vcSampai').value = v.sampai || '';
   $('vcGabung').checked = v.gabungPromo;
+  $('vcTampil').checked = v.tampil !== false;
   $('vcJudulForm').textContent = 'Edit voucher ' + v.kode;
   $('vcBatal').hidden = false; $('vcPesan').textContent = '';
   $('vcForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -754,7 +756,7 @@ $('vcForm').addEventListener('submit', async e => {
   try {
     await panggil('voucherSimpan', {
       kode: $('vcKode').value, jenis: $('vcJenis').value, nilai: $('vcNilai').value, maks: $('vcMaks').value, min: $('vcMin').value,
-      kuota: $('vcKuota').value, perAkun: $('vcPerAkun').value, dari: $('vcDari').value, sampai: $('vcSampai').value, gabungPromo: $('vcGabung').checked
+      kuota: $('vcKuota').value, perAkun: $('vcPerAkun').value, dari: $('vcDari').value, sampai: $('vcSampai').value, gabungPromo: $('vcGabung').checked, tampil: $('vcTampil').checked
     });
     const kode = $('vcKode').value;
     resetFormVoucher();

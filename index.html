@@ -339,6 +339,18 @@
   .cmp-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .fav-btn { flex: 0 0 46px; min-height: 38px; padding: 0; border: 1.5px solid var(--pink); border-radius: 6px; background: #fff; color: var(--pink); font-size: 1.2rem; line-height: 1; cursor: pointer; }
   .fav-btn[aria-pressed="true"] { background: var(--pink); color: #fff; }
+  .voucher-strip { margin: 4px 0 16px; }
+  .voucher-strip h2 { margin: 0 0 8px; font-size: 1rem; }
+  .vc-baris-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+  .vc-kartu { flex: 0 0 min(260px, 78%); scroll-snap-align: start; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 2px dashed var(--pink); border-radius: 12px; background: #fff; }
+  .vc-kode { font-size: 1.1rem; letter-spacing: .04em; color: var(--pink); }
+  .vc-desk { font-weight: 600; }
+  .vc-syarat { font-size: .82rem; color: var(--muted); }
+  .vc-salin { align-self: flex-start; margin-top: 4px; min-height: 36px; padding: 4px 14px; border: 1.5px solid var(--pink); border-radius: 999px; background: transparent; color: var(--pink); font: inherit; font-size: .88rem; font-weight: 600; cursor: pointer; }
+  .d-voucher-tanya { margin: 4px 0 6px; font-size: .88rem; color: var(--muted); }
+  .d-voucher-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+  .vc-chip { min-height: 38px; padding: 4px 12px; border: 1.5px dashed var(--pink); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-size: .85rem; cursor: pointer; text-align: left; }
+  .vc-chip b { color: var(--pink); letter-spacing: .03em; }
   .coret-kartu { margin-top: 2px; font-size: .82rem; color: var(--muted); }
   .coret-kartu s, .d-coret s { color: var(--muted); }
   .badge-diskon { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--pink); color: #fff; font-size: .75rem; font-weight: 700; vertical-align: middle; }
@@ -439,6 +451,8 @@
     </div>
     <input class="cari" id="cari" type="search" placeholder="Cari nama casing" aria-label="Cari nama casing">
   </div>
+
+  <section class="voucher-strip" id="voucherStrip" aria-label="Voucher untuk kamu" hidden></section>
 
   <section class="grid" id="grid"></section>
 </main>
@@ -971,6 +985,8 @@ async function segarkanStok() {
   if (!API_URL) return;
   try {
     const d = await ambilData();
+    voucherPublik = d.voucher || [];
+    gambarVoucherStrip();
     (d.produk || []).forEach(n => {
       const lama = semuaProduk.find(x => x.nama === n.nama);
       if (lama) { lama.stok = n.stok; lama.status = n.status; lama.harga = n.harga; lama.rating = n.rating; lama.ulasan = n.ulasan; lama.varian = n.varian || []; lama.hargaAsli = n.hargaAsli || ''; lama.diskon = n.diskon || 0; lama.promoSampai = n.promoSampai || ''; }
@@ -1187,6 +1203,52 @@ elBd('invTutup').addEventListener('click', () => elBd('invDlg').close());
 elBd('invDlg').addEventListener('click', e => { if (e.target === elBd('invDlg')) elBd('invDlg').close(); });
 elBd('invDlg').addEventListener('close', () => document.body.classList.remove('cetak-inv'));
 window.addEventListener('afterprint', () => document.body.classList.remove('cetak-inv'));
+
+/* Voucher yang dibuka untuk umum (dari data toko): tampil di halaman utama dan di form pesan */
+let voucherPublik = [];
+function potongVoucherTeks(v) {
+  return v.jenis === 'persen' ? 'Diskon ' + v.nilai + '%' + (v.maks ? ' (maks ' + rp(v.maks) + ')' : '') : 'Hemat ' + rp(v.nilai);
+}
+function tglSingkat(t) {
+  const [y, m, d] = String(t).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function syaratVoucherTeks(v) {
+  return [v.min ? 'Min. belanja ' + rp(v.min) : 'Tanpa minimal belanja', v.sampai ? 'sampai ' + tglSingkat(v.sampai) : '', v.gabungPromo ? '' : 'tidak berlaku di produk promo'].filter(Boolean).join(' · ');
+}
+async function salinKode(kode) {
+  try { await navigator.clipboard.writeText(kode); }
+  catch (e) {
+    const t = document.createElement('textarea');
+    t.value = kode; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    t.remove();
+  }
+  toast('Kode ' + kode + ' disalin. Tempel di kolom voucher saat memesan.');
+}
+function gambarVoucherStrip() {
+  const box = document.getElementById('voucherStrip');
+  box.textContent = '';
+  box.hidden = !voucherPublik.length;
+  if (!voucherPublik.length) return;
+  const judul = document.createElement('h2');
+  judul.textContent = 'Voucher untuk kamu';
+  const baris = document.createElement('div');
+  baris.className = 'vc-baris-scroll';
+  voucherPublik.forEach(v => {
+    const k = document.createElement('div'); k.className = 'vc-kartu';
+    const kode = document.createElement('b'); kode.className = 'vc-kode'; kode.textContent = v.kode;
+    const desk = document.createElement('span'); desk.className = 'vc-desk'; desk.textContent = potongVoucherTeks(v);
+    const syarat = document.createElement('span'); syarat.className = 'vc-syarat'; syarat.textContent = syaratVoucherTeks(v);
+    const salin = document.createElement('button'); salin.type = 'button'; salin.className = 'vc-salin'; salin.textContent = 'Salin kode';
+    salin.setAttribute('aria-label', 'Salin kode voucher ' + v.kode);
+    salin.onclick = () => salinKode(v.kode);
+    k.append(kode, desk, syarat, salin);
+    baris.appendChild(k);
+  });
+  box.append(judul, baris);
+}
 
 /* Promo: p.harga = harga yang dibayar, p.hargaAsli = harga normal (dicoret), p.diskon = persen, p.promoSampai = yyyy-MM-dd */
 function isiCoret(el, p) {
@@ -2180,7 +2242,21 @@ function buatBeli(p) {
   const vcBtn = mk('button', { type: 'button', className: 'btn-vc', textContent: 'Pakai' });
   const vcInfo = mk('p', { className: 'd-pesan', role: 'status' });
   vcBaris.append(vc, vcBtn);
-  vcWrap.append(vcLabel, vcBaris, vcInfo);
+  // Voucher yang dibuka untuk umum: pembeli tinggal tap untuk memakainya
+  const cocok = voucherPublik.filter(v => v.gabungPromo || !(p.diskon > 0));
+  const vcPilih = mk('div', { className: 'd-voucher-pilih' });
+  if (cocok.length) {
+    vcPilih.appendChild(mk('p', { className: 'd-voucher-tanya', textContent: 'Voucher yang tersedia (tap untuk memakai):' }));
+    const wadah = mk('div', { className: 'd-voucher-chips' });
+    cocok.forEach(v => {
+      const b = mk('button', { type: 'button', className: 'vc-chip' });
+      b.append(mk('b', { textContent: v.kode }), ' ' + (v.jenis === 'persen' ? '-' + v.nilai + '%' : '-' + rp(v.nilai)) + (v.min ? ' · min. ' + rp(v.min) : ''));
+      b.onclick = () => { vc.value = v.kode; terapkanVc(); };
+      wadah.appendChild(b);
+    });
+    vcPilih.appendChild(wadah);
+  }
+  vcWrap.append(vcLabel, vcPilih, vcBaris, vcInfo);
   form.append(vcWrap, total, garL, humanBox, cap, kirim);
   box.append(form, waBanyak, ket);
 
@@ -2297,6 +2373,8 @@ loginOtomatis();
 ambilData()
   .then(d => {
     buatBanner(d.banner);
+    voucherPublik = d.voucher || [];
+    gambarVoucherStrip();
     semuaProduk = d.produk || [];
     tampilkan(semuaProduk);
     if (customerToken) muatAkunPelanggan();
